@@ -22,13 +22,13 @@
             <section class="page-heading" aria-labelledby="page-title">
                 <p class="eyebrow">IoT-monitorering</p>
                 <h1 id="page-title">Seneste målinger</h1>
-                <p>Aktuelle data fra tilsluttede Nordic Thingy:91 X-chips.</p>
+                <p>Aktuelle data fra tilsluttede Nordic Thingy:91 X-enheder.</p>
             </section>
 
             <section class="panel" aria-labelledby="readings-title">
                 <div class="panel-heading">
                     <div>
-                        <h2 id="readings-title">Chips</h2>
+                        <h2 id="readings-title">Enheder</h2>
                         <p id="reading-count">Henter data...</p>
                     </div>
                     <p class="last-updated" id="last-updated">—</p>
@@ -38,9 +38,9 @@
                     <table>
                         <thead>
                             <tr>
-                                <th scope="col">Chip</th>
+                                <th scope="col">Enhed</th>
                                 <th scope="col">Tidspunkt</th>
-                                <th scope="col">Chip-temperatur</th>
+                                <th scope="col">Enhedstemperatur</th>
                                 <th scope="col">Batteri</th>
                             </tr>
                         </thead>
