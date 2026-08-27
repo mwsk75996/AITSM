@@ -138,7 +138,8 @@ SEGGER J-Link-probe.
 
 - `docs/` – projektdokumentation, krav og tekniske referencer
 - `scripts/` – hjælpeværktøjer til udviklingsmiljøet
-- `app/` – Zephyr-applikation til LTE-forbindelse på Thingy:91 X
+- `app/` – Zephyr-applikation til NB-IoT-forbindelse på Thingy:91 X
+- `tests/` – automatiserede firmware-tests (køres med Twister)
 - `cloud/visualization/` – visualization-websitet og dets API
 - `build/` – lokale, genererede build-filer (ignoreres af Git)
 

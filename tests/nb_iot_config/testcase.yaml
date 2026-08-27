@@ -1,0 +1,7 @@
+tests:
+  aitsm.nb_iot_config:
+    build_only: true
+    platform_allow:
+      - thingy91x/nrf9151/ns
+    integration_platforms:
+      - thingy91x/nrf9151/ns
