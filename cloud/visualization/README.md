@@ -4,8 +4,11 @@ Denne mappe indeholder den første version af visualization-websitet.
 
 - `index.php` – websidens entrypoint
 - `styles.css` – layout og styling
-- `app.js` – henter status fra API’et
-- `api.php` – minimalt health-endpoint
+- `app.js` – henter og viser seneste måling pr. chip
+- `api.php` – read-only endpoint mod QuestDB-tabellen `sensor_readings`
+
+API’et bruger felterne `device_id`, `timestamp`, `temperature` og `battery`.
+Det henter den seneste række for hver chip og opdateres automatisk hvert 30. sekund.
 
 Lokalt kan siden testes med PHP’s indbyggede server fra projektroden:
 
