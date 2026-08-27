@@ -7,8 +7,10 @@ glidende gennem grøn, blå og rød ved hjælp af PWM.
 
 - `CMakeLists.txt` kobler applikationen sammen med Zephyr-buildsystemet.
 - `prj.conf` aktiverer PWM-driveren.
-- `src/main.c` initialiserer RGB-kanalerne og laver de tre kontinuerlige
+- `include/led_fader.h` deklarerer LED-faderens offentlige entrypoint.
+- `src/led_fader.c` initialiserer RGB-kanalerne og laver de tre kontinuerlige
   crossfades: grøn → blå, blå → rød og rød → grøn.
+- `src/main.c` starter LED-faderen.
 
 ## Build
 
