@@ -22,8 +22,9 @@ fi
 export ZEPHYR_BASE="$NCS_ROOT/zephyr"
 export ZEPHYR_SDK_INSTALL_DIR="$NCS_TOOLCHAIN_ROOT/opt/zephyr-sdk"
 export NRFUTIL_HOME="$NCS_TOOLCHAIN_ROOT/nrfutil/home"
+export PYTHONPATH="$NCS_TOOLCHAIN_ROOT/usr/local/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
 
-export PATH="$NCS_TOOLCHAIN_ROOT/usr/local/bin:$NCS_TOOLCHAIN_ROOT/opt/zephyr-sdk/hosttools:$NCS_TOOLCHAIN_ROOT/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin:$NCS_ROOT/scripts:$PATH"
+export PATH="$NCS_TOOLCHAIN_ROOT/usr/local/bin:$NCS_TOOLCHAIN_ROOT/nrfutil/bin:$NCS_TOOLCHAIN_ROOT/opt/zephyr-sdk/hosttools:$NCS_TOOLCHAIN_ROOT/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin:$NCS_ROOT/scripts:$PATH"
 
 echo "Activated NCS $NCS_VERSION (Zephyr 4.4.0)"
 echo "ZEPHYR_BASE=$ZEPHYR_BASE"
