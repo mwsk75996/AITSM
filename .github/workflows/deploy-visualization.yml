@@ -84,5 +84,8 @@ jobs:
 
       - name: Test live website
         run: |
-          curl --fail --silent --show-error --location \
-            --retry 3 --retry-delay 5 --max-time 20 "$LIVE_URL" > /dev/null
+          for path in / /styles.css /app.js /api.php; do
+            curl --fail --silent --show-error --location \
+              --retry 3 --retry-delay 5 --max-time 20 \
+              "${LIVE_URL%/}${path}" > /dev/null
+          done
