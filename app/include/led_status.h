@@ -5,10 +5,8 @@
 enum led_status {
 	/** The modem is searching for a network. */
 	LED_STATUS_CONNECTING,
-	/** The modem is registered using LTE-M. */
-	LED_STATUS_CONNECTED_LTE_M,
-	/** The modem is registered using NB-IoT. */
-	LED_STATUS_CONNECTED_NB_IOT,
+	/** The modem is registered on the network (NB-IoT only). */
+	LED_STATUS_CONNECTED,
 	/** The modem is not registered on a network. */
 	LED_STATUS_DISCONNECTED,
 	/** A modem or LED initialization error occurred. */

@@ -1,3 +1,4 @@
 # Local project credentials
 /project_context/.vps-credentials.env
 /build/
+/twister-out/
