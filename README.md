@@ -33,9 +33,103 @@ Board-target for Thingy:91 X med nRF9151 er:
 thingy91x/nrf9151
 ```
 
+### `scripts/` – aktivering af værktøjerne
+
+Filen `scripts/activate-ncs.sh` aktiverer de versioner af `west`, CMake,
+Ninja, nRF Util og ARM-toolchainen, som hører til NCS v3.4.0. Scriptet skal
+**sources** fra projektroden, fordi det eksporterer miljøvariabler til den
+aktuelle terminal:
+
+```bash
+source scripts/activate-ncs.sh
+```
+
+Det kan kontrolleres med:
+
+```bash
+west --version
+nrfutil --version
+echo "$ZEPHYR_BASE"
+```
+
+Hvis scriptet køres som `bash scripts/activate-ncs.sh`, forsvinder de
+eksporterede variabler igen, når scriptet afslutter. Derfor bruges `source`.
+
+### `app/` – selve Zephyr-applikationen
+
+`app/` er applikationens Zephyr-projekt. Det består af:
+
+- `app/CMakeLists.txt` – fortæller Zephyr, hvordan applikationen bygges, og
+  hvilke kildefiler der skal med.
+- `app/prj.conf` – aktiverer de nødvendige konfigurationer, herunder GPIO og
+  PWM.
+- `app/src/main.c` – firmwarelogikken. Den bruger Thingy:91 X’s tre PWM-kanaler
+  til at fade glidende gennem RGB-farverne.
+- `app/README.md` – en kort vejledning specifikt til blinky-applikationen.
+
+### Build
+
+Fra projektroden aktiveres miljøet først, og derefter bygges `app/` til
+board-targetet:
+
+```bash
+source scripts/activate-ncs.sh
+west build -b thingy91x/nrf9151 -d build/thingy91x_nrf9151 app
+```
+
+Build-outputtet ligger i `build/thingy91x_nrf9151/`. Mappen er ignoreret af
+Git, fordi den kun indeholder genererede filer. Den vigtigste firmwarepakke
+til USB/MCUboot-upload er:
+
+```text
+build/thingy91x_nrf9151/dfu_application.zip
+```
+
+### Flash til Thingy:91 X
+
+Kontrollér først, at boardet er tændt og tilsluttet med et USB-datakabel:
+
+```bash
+source scripts/activate-ncs.sh
+nrfutil device list
+```
+
+Find boardets id i outputtet, og brug det ved upload. På Thingy:91 X fungerer
+USB/MCUboot-metoden med den genererede ZIP-fil:
+
+```bash
+nrfutil device program \
+  --firmware build/thingy91x_nrf9151/dfu_application.zip \
+  --serial-number THINGY91X_XXXXXXXXXXXX \
+  --traits mcuBoot \
+  --family nrf91 \
+  --options target=nRF91,mcu_end_state=NRFDL_MCU_STATE_APPLICATION
+```
+
+Erstat `THINGY91X_XXXXXXXXXXXX` med det faktiske device-id fra `nrfutil
+device list`. En succesfuld upload afsluttes uden fejl, og boardet resettes
+til den nye applikation.
+
+På Linux kan en fejl med `errno 13` skyldes manglende Nordic-udev-regler.
+Reglerne installeres én gang med:
+
+```bash
+pkexec sh -c 'install -m 644 /home/matt/ncs/toolchains/fbf7391cab/nrfutil/home/share/nrfutil-device/udev/rules.d/99-mm-nrf-blacklist.rules /etc/udev/rules.d/99-mm-nrf-blacklist.rules; install -m 644 /home/matt/ncs/toolchains/fbf7391cab/nrfutil/home/share/nrfutil-device/udev/rules.d/71-nrf.rules /etc/udev/rules.d/71-nrf.rules; udevadm control --reload-rules; udevadm trigger'
+pkexec udevadm trigger --action=add --subsystem-match=tty
+pkexec udevadm trigger --action=add --subsystem-match=usb
+```
+
+Advarslen om manglende `JLinkARM DLL` er ikke afgørende for USB/MCUboot-
+metoden ovenfor. Den er relevant, hvis der senere flashes via en fysisk
+SEGGER J-Link-probe.
+
 ## Projektstruktur
 
 - `docs/` – projektdokumentation, krav og tekniske referencer
 - `scripts/` – hjælpeværktøjer til udviklingsmiljøet
+- `app/` – Zephyr-applikationer til Thingy:91 X
+- `build/` – lokale, genererede build-filer (ignoreres af Git)
 
 Se [dokumentationsoversigten](docs/README.md) for referencefiler, PDF’er og projektets baggrundsmateriale.
+
+Lavet af Thomas kun Thomas
