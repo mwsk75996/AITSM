@@ -1,9 +1,10 @@
+#include <errno.h>
 #include <stdint.h>
 
 #include <zephyr/drivers/pwm.h>
 #include <zephyr/kernel.h>
 
-#include <led_fader.h>
+#include <led_status.h>
 
 #define RED_LED_NODE DT_ALIAS(pwm_led0)
 #define GREEN_LED_NODE DT_ALIAS(pwm_led1)
@@ -15,12 +16,11 @@
 #error "This board requires pwm_led0, pwm_led1 and pwm_led2 aliases"
 #endif
 
-static const struct pwm_dt_spec red_led =
-	PWM_DT_SPEC_GET(RED_LED_NODE);
-static const struct pwm_dt_spec green_led =
-	PWM_DT_SPEC_GET(GREEN_LED_NODE);
-static const struct pwm_dt_spec blue_led =
-	PWM_DT_SPEC_GET(BLUE_LED_NODE);
+static const struct pwm_dt_spec red_led = PWM_DT_SPEC_GET(RED_LED_NODE);
+static const struct pwm_dt_spec green_led = PWM_DT_SPEC_GET(GREEN_LED_NODE);
+static const struct pwm_dt_spec blue_led = PWM_DT_SPEC_GET(BLUE_LED_NODE);
+
+static struct k_mutex led_mutex;
 
 static uint32_t brightness_to_pulse(const struct pwm_dt_spec *led,
 					    uint8_t brightness)
@@ -47,29 +47,51 @@ static int set_color(uint8_t red, uint8_t green, uint8_t blue)
 				       brightness_to_pulse(&blue_led, blue));
 }
 
-void led_fader_run(void)
+int led_status_init(void)
 {
 	if (!pwm_is_ready_dt(&red_led) ||
 	    !pwm_is_ready_dt(&green_led) ||
 	    !pwm_is_ready_dt(&blue_led)) {
-		return;
+		return -ENODEV;
 	}
 
-	while (1) {
-		/* Fade continuously through green -> blue -> red -> green. */
-		for (uint16_t step = 0; step <= UINT8_MAX; step++) {
-			(void)set_color(0, UINT8_MAX - step, step);
-			k_sleep(K_MSEC(10));
-		}
+	k_mutex_init(&led_mutex);
+	return led_status_set(LED_STATUS_DISCONNECTED);
+}
 
-		for (uint16_t step = 0; step <= UINT8_MAX; step++) {
-			(void)set_color(step, 0, UINT8_MAX - step);
-			k_sleep(K_MSEC(10));
-		}
+int led_status_set(enum led_status status)
+{
+	uint8_t red = 0;
+	uint8_t green = 0;
+	uint8_t blue = 0;
+	int ret;
 
-		for (uint16_t step = 0; step <= UINT8_MAX; step++) {
-			(void)set_color(UINT8_MAX - step, step, 0);
-			k_sleep(K_MSEC(10));
-		}
+	switch (status) {
+	case LED_STATUS_CONNECTING:
+		blue = UINT8_MAX;
+		break;
+	case LED_STATUS_CONNECTED_LTE_M:
+		green = UINT8_MAX;
+		break;
+	case LED_STATUS_CONNECTED_NB_IOT:
+		red = UINT8_MAX;
+		green = UINT8_MAX;
+		break;
+	case LED_STATUS_DISCONNECTED:
+	case LED_STATUS_ERROR:
+		red = UINT8_MAX;
+		break;
+	default:
+		return -EINVAL;
 	}
+
+	ret = k_mutex_lock(&led_mutex, K_FOREVER);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = set_color(red, green, blue);
+	k_mutex_unlock(&led_mutex);
+
+	return ret;
 }
