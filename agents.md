@@ -12,3 +12,15 @@
 - Alle pull requests (PRs), herunder titel, beskrivelse og kommentarer, skal skrives på dansk.
 - Issues, review-kommentarer og anden Git-relateret kommunikation skal skrives på dansk.
 - Kode, filnavne og tekniske identifikatorer må fortsat bruge engelsk, når det er den naturlige konvention.
+
+## Cloud og visualization
+
+- Live visualization: [aitsm.vps.webdock.cloud](https://aitsm.vps.webdock.cloud/)
+- Kildekode til websitet ligger i `cloud/visualization/`.
+- Push til `main` med ændringer i `cloud/visualization/**` udløser GitHub Actions-workflowet `Deploy visualization`.
+- Workflowet deployer kun til `/var/www/html/projekt-c/cloud/visualization/` via rsync over SSH.
+- Website-entrypointet er `index.php`, og de tilhørende assets er `styles.css`, `app.js` og `api.php`.
+- `api.php` læser read-only fra QuestDB-tabellen `sensor_readings` og viser seneste række pr. `device_id` med felterne `timestamp`, `temperature` og `battery`.
+- Deploy må ikke ændre `cloud/mqtt/`, QuestDB-data, Mosquitto-konfiguration, `.env`-filer eller `/var/www/html/index.php`.
+- SSH credentials og host key må kun håndteres via GitHub Secrets. Private keys og secret-værdier må aldrig committes eller dokumenteres i repository’et.
+- Ved cloud-ændringer skal PHP-filer lintes, live-assets kontrolleres, og workflowets live-test skal bestå for `/`, `/styles.css`, `/app.js` og `/api.php`.
