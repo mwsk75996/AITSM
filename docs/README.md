@@ -1,6 +1,6 @@
 # Projektkontekst
 
-Denne mappe indeholder baggrundsmateriale til IoT-projektet. PDF’erne er kopieret fra `/home/matt/Downloads/`; originalerne er bevaret.
+Denne mappe indeholder baggrundsmateriale til IoT-projektet.
 
 ## Projektnavn
 
