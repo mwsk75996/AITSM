@@ -69,14 +69,14 @@ eksporterede variabler igen, når scriptet afslutter. Derfor bruges `source`.
 
 - `app/CMakeLists.txt` – fortæller Zephyr, hvordan applikationen bygges, og
   hvilke kildefiler der skal med.
-- `app/prj.conf` – aktiverer de nødvendige konfigurationer, herunder GPIO og
-  PWM.
-- `app/include/led_fader.h` – offentlig funktion til at starte RGB-faderens
-  kontinuerlige loop.
-- `app/src/led_fader.c` – firmwarelogikken, som bruger Thingy:91 X’s tre
-  PWM-kanaler til at fade glidende gennem RGB-farverne.
-- `app/src/main.c` – applikationens entrypoint, som starter LED-faderen.
-- `app/README.md` – en kort vejledning specifikt til blinky-applikationen.
+- `app/prj.conf` – aktiverer GPIO, PWM, nRF-modem, LTE Link Control og
+  IP-socket-offload.
+- `app/include/led_status.h` og `app/src/led_status.c` – styrer RGB-LED’en
+  efter forbindelsesstatus.
+- `app/include/network.h` og `app/src/network.c` – initialiserer modemmet,
+  starter LTE-forbindelsen og håndterer registrerings-events.
+- `app/src/main.c` – applikationens entrypoint.
+- `app/README.md` – vejledning til build, flash og LED-status.
 
 ### Build
 
@@ -138,7 +138,7 @@ SEGGER J-Link-probe.
 
 - `docs/` – projektdokumentation, krav og tekniske referencer
 - `scripts/` – hjælpeværktøjer til udviklingsmiljøet
-- `app/` – Zephyr-applikationer til Thingy:91 X
+- `app/` – Zephyr-applikation til LTE-forbindelse på Thingy:91 X
 - `cloud/visualization/` – visualization-websitet og dets API
 - `build/` – lokale, genererede build-filer (ignoreres af Git)
 

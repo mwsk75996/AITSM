@@ -1,7 +1,15 @@
-# AITSM RGB blinky
+# AITSM cellular connection
 
-Zephyr-app til Nordic Thingy:91 X (`thingy91x/nrf9151/ns`). RGB-LED'en fader
-glidende gennem grøn, blå og rød ved hjælp af PWM.
+Zephyr-app til Nordic Thingy:91 X (`thingy91x/nrf9151/ns`). Applikationen
+initialiserer nRF9151-modemet og etablerer en LTE-forbindelse via SIM-kortet.
+LTE-M og NB-IoT er aktiveret, så modemmet kan vælge en understøttet teknologi.
+
+RGB-LED'en viser forbindelsesstatus:
+
+- Blå: søger efter LTE-netværk eller forbinder.
+- Grøn: LTE-M-forbindelse er aktiv.
+- Gul: NB-IoT-forbindelse er aktiv.
+- Rød: ingen forbindelse eller fejl.
 
 Boardet bygges som **non-secure (`/ns`)**, fordi `CONFIG_NRF_MODEM_LIB` kræver
 `CONFIG_TRUSTED_EXECUTION_NONSECURE=y`, som kun sættes af `ns`-varianten af
@@ -11,12 +19,14 @@ Kconfig-indstilling i `prj.conf`.
 ## Mappens filer
 
 - `CMakeLists.txt` kobler applikationen sammen med Zephyr-buildsystemet.
-- `prj.conf` aktiverer GPIO, PWM samt netværks-, modem- og MQTT-understøttelse
-  (se [`KCONFIG.md`](KCONFIG.md)).
-- `include/led_fader.h` deklarerer LED-faderens offentlige entrypoint.
-- `src/led_fader.c` initialiserer RGB-kanalerne og laver de tre kontinuerlige
-  crossfades: grøn → blå, blå → rød og rød → grøn.
-- `src/main.c` starter LED-faderen.
+- `prj.conf` aktiverer PWM, nRF-modem, LTE Link Control, IP-socket-offload og
+  MQTT-understøttelse (se [`KCONFIG.md`](KCONFIG.md)).
+- `include/led_status.h` deklarerer LED-statusmodulets API.
+- `include/network.h` deklarerer netværksmodulets API.
+- `src/led_status.c` styrer RGB-LED'en.
+- `src/network.c` initialiserer modemmet, starter LTE-forbindelsen og reagerer på
+  ændringer i netværksregistreringen.
+- `src/main.c` initialiserer LED- og netværksmodulerne.
 
 ## Build
 
@@ -47,3 +57,9 @@ nrfutil device program \
   --family nrf91 \
   --options target=nRF91,mcu_end_state=NRFDL_MCU_STATE_APPLICATION
 ```
+
+Åbn en seriel terminal efter flash. Ved en vellykket forbindelse vises
+`LTE registered ...` og `LTE mode: LTE-M` eller `LTE mode: NB-IoT` i loggen.
+LED'en lyser grøn ved LTE-M og gul ved NB-IoT. Før registrering lyser LED'en
+blå; ved mistet forbindelse bliver den rød, mens modemmet forsøger at
+genoprette forbindelsen.

@@ -10,8 +10,8 @@ Kilder er NCS v3.4.0 / Zephyr 4.4.0's egne Kconfig-filer.
 Slår GPIO-driveren til. Bruges indirekte af PWM-output til RGB-LED'en.
 
 ### `CONFIG_PWM=y`
-Slår PWM-driveren (Pulse Width Modulation) til. `led_fader.c` bruger tre
-PWM-kanaler til at fade glidende mellem rød, grøn og blå.
+Slår PWM-driveren (Pulse Width Modulation) til. `led_status.c` bruger tre
+PWM-kanaler til at styre RGB-LED'en efter forbindelsesstatus.
 
 ## Netværk
 
