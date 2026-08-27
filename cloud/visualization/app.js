@@ -53,7 +53,7 @@ function formatValue(value, unit) {
 }
 
 function renderReadings(readings) {
-    readingCount.textContent = `${readings.length} ${readings.length === 1 ? 'chip' : 'chips'}`;
+    readingCount.textContent = `${readings.length} ${readings.length === 1 ? 'enhed' : 'enheder'}`;
 
     if (readings.length === 0) {
         readingsBody.innerHTML = '<tr><td class="table-message" colspan="4">Ingen målinger fundet.</td></tr>';
@@ -62,7 +62,7 @@ function renderReadings(readings) {
 
     readingsBody.innerHTML = readings.map((reading) => `
         <tr>
-            <th scope="row">${escapeHtml(reading.device_id || 'Ukendt chip')}</th>
+            <th scope="row">${escapeHtml(reading.device_id || 'Ukendt enhed')}</th>
             <td>${escapeHtml(formatTimestamp(reading.timestamp))}</td>
             <td>${escapeHtml(formatValue(reading.temperature, '°C'))}</td>
             <td>${escapeHtml(formatValue(reading.battery, '%'))}</td>
