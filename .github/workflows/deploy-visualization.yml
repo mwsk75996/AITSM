@@ -1,0 +1,88 @@
+name: Deploy visualization
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - cloud/visualization/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-visualization
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy til VPS
+    runs-on: ubuntu-latest
+    env:
+      REMOTE_PATH: ${{ secrets.VPS_PATH }}
+      LIVE_URL: https://aitsm.vps.webdock.cloud/
+
+    steps:
+      - name: Hent repository
+        uses: actions/checkout@v4
+
+      - name: Installér PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+
+      - name: Valider PHP
+        run: |
+          php -l cloud/visualization/index.php
+          php -l cloud/visualization/api.php
+
+      - name: Konfigurér SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          test -n "$VPS_SSH_KEY" || { echo "Secret VPS_SSH_KEY mangler" >&2; exit 1; }
+          test -n "$VPS_KNOWN_HOSTS" || { echo "Secret VPS_KNOWN_HOSTS mangler" >&2; exit 1; }
+
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
+
+      - name: Deploy cloud/visualization
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -eu
+          test -n "$VPS_HOST" || { echo "Secret VPS_HOST mangler" >&2; exit 1; }
+          test -n "$VPS_USER" || { echo "Secret VPS_USER mangler" >&2; exit 1; }
+          test -n "$REMOTE_PATH" || { echo "Secret VPS_PATH mangler" >&2; exit 1; }
+          REMOTE_PATH="${REMOTE_PATH%/}"
+
+          SSH_OPTIONS="-i $HOME/.ssh/deploy_key -p ${VPS_PORT:-22} -o BatchMode=yes"
+          ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" "mkdir -p '$REMOTE_PATH'"
+          rsync --archive --compress --delete \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            -e "ssh $SSH_OPTIONS" \
+            cloud/visualization/ "$VPS_USER@$VPS_HOST:$REMOTE_PATH/"
+
+      - name: Validér og reload Nginx
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -eu
+          REMOTE_PATH="${REMOTE_PATH%/}"
+          SSH_OPTIONS="-i $HOME/.ssh/deploy_key -p ${VPS_PORT:-22} -o BatchMode=yes"
+          ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" \
+            "set -eu; php -l '$REMOTE_PATH/index.php'; php -l '$REMOTE_PATH/api.php'; sudo -n /usr/sbin/nginx -t; sudo -n /usr/bin/systemctl reload nginx"
+
+      - name: Test live website
+        run: |
+          curl --fail --silent --show-error --location \
+            --retry 3 --retry-delay 5 --max-time 20 "$LIVE_URL" > /dev/null

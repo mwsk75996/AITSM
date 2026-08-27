@@ -131,6 +131,7 @@ SEGGER J-Link-probe.
 - `docs/` – projektdokumentation, krav og tekniske referencer
 - `scripts/` – hjælpeværktøjer til udviklingsmiljøet
 - `app/` – Zephyr-applikationer til Thingy:91 X
+- `cloud/visualization/` – visualization-websitet og dets API
 - `build/` – lokale, genererede build-filer (ignoreres af Git)
 
 Se [dokumentationsoversigten](docs/README.md) for referencefiler, PDF’er og projektets baggrundsmateriale.

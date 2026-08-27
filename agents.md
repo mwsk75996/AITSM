@@ -6,6 +6,7 @@
 - Ændringer udvikles i feature branches, som knyttes til den relevante Issue.
 - Vi bruger ikke længere individuelle personlige branches — al kodning sker i feature branches.
 - Ændringer skal ledsages af relevante unit tests, og unit tests skal køres, før arbejdet afsluttes.
+- Koden skal have en god, modulær filstruktur. Funktionalitet skal opdeles i relevante `.c`- og `.h`-filer, f.eks. `feature.c` og `feature.h`, i stedet for at samle alt i `main.c`.
 - Hvis brugeren siger “push til main”, skal det dobbelttjekkes, at det virkelig er den ønskede branch, før der pushes.
 - Alle commitbeskeder skal skrives på dansk.
 - Alle pull requests (PRs), herunder titel, beskrivelse og kommentarer, skal skrives på dansk.
