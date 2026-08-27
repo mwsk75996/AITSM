@@ -30,8 +30,16 @@ source scripts/activate-ncs.sh
 Board-target for Thingy:91 X med nRF9151 er:
 
 ```text
-thingy91x/nrf9151
+thingy91x/nrf9151/ns
 ```
+
+Boardet skal bygges som **non-secure (`/ns`)**, fordi `CONFIG_NRF_MODEM_LIB`
+(og dermed LTE/MQTT-funktionaliteten) kræver
+`CONFIG_TRUSTED_EXECUTION_NONSECURE=y`. Den secure-variant af boardet
+(`thingy91x/nrf9151` uden `/ns`) sætter ikke dette flag og kan derfor ikke
+bruge modembiblioteket. Se
+[`app/KCONFIG.md`](app/KCONFIG.md) for detaljer om de enkelte
+Kconfig-symboler.
 
 ### `scripts/` – aktivering af værktøjerne
 
@@ -77,7 +85,7 @@ board-targetet:
 
 ```bash
 source scripts/activate-ncs.sh
-west build -b thingy91x/nrf9151 -d build/thingy91x_nrf9151 app
+west build -b thingy91x/nrf9151/ns -d build/thingy91x_nrf9151 app
 ```
 
 Build-outputtet ligger i `build/thingy91x_nrf9151/`. Mappen er ignoreret af

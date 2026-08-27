@@ -1,12 +1,18 @@
 # AITSM RGB blinky
 
-Zephyr-app til Nordic Thingy:91 X (`thingy91x/nrf9151`). RGB-LED'en fader
+Zephyr-app til Nordic Thingy:91 X (`thingy91x/nrf9151/ns`). RGB-LED'en fader
 glidende gennem grøn, blå og rød ved hjælp af PWM.
+
+Boardet bygges som **non-secure (`/ns`)**, fordi `CONFIG_NRF_MODEM_LIB` kræver
+`CONFIG_TRUSTED_EXECUTION_NONSECURE=y`, som kun sættes af `ns`-varianten af
+boardet. Se [`KCONFIG.md`](KCONFIG.md) for en gennemgang af hver enkelt
+Kconfig-indstilling i `prj.conf`.
 
 ## Mappens filer
 
 - `CMakeLists.txt` kobler applikationen sammen med Zephyr-buildsystemet.
-- `prj.conf` aktiverer PWM-driveren.
+- `prj.conf` aktiverer GPIO, PWM samt netværks-, modem- og MQTT-understøttelse
+  (se [`KCONFIG.md`](KCONFIG.md)).
 - `include/led_fader.h` deklarerer LED-faderens offentlige entrypoint.
 - `src/led_fader.c` initialiserer RGB-kanalerne og laver de tre kontinuerlige
   crossfades: grøn → blå, blå → rød og rød → grøn.
@@ -18,7 +24,7 @@ Fra projektroden:
 
 ```bash
 source scripts/activate-ncs.sh
-west build -b thingy91x/nrf9151 -d build/thingy91x_nrf9151 app
+west build -b thingy91x/nrf9151/ns -d build/thingy91x_nrf9151 app
 ```
 
 Buildet genererer blandt andet `build/thingy91x_nrf9151/dfu_application.zip`.
