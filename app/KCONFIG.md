@@ -72,12 +72,29 @@ netværksregistrering, PSM/eDRX, cellemålinger m.m. Bruges til selve
 opkoblingslogikken, adskilt fra `NRF_MODEM_LIB` som blot giver adgang til
 modemmet.
 
+### `CONFIG_LTE_NETWORK_MODE_NBIOT=y`
+Vælger netværksmoden NB-IoT i lte_lc's `LTE_NETWORK_MODE`-choice
+(`nrf/lib/lte_link_control/Kconfig`). Choiceens standardværdi er
+`LTE_NETWORK_MODE_LTE_M_NBIOT_GPS` (LTE-M, NB-IoT og GNSS), men siden issue #25
+skal enheden **udelukkende** bruge NB-IoT:
+
+- NB-IoT er valgt med hensyn til strømforbrug og dækning i projektkonteksten
+  (relateret til issue #6 om cellulær forbindelse og strømforbrug).
+- LTE-M og alle kombinationsmoden (`LTE_M`, `LTE_M_GPS`, `LTE_M_NBIOT`,
+  `LTE_M_NBIOT_GPS`) er dermed udeladt af choice'en og kan ikke vælges af
+  modemmet som fald-back.
+- `tests/nb_iot_config/` indeholder en compile-time-test, der fejler buildet,
+  hvis kombinationsmoden bliver aktiveret igen.
+
+NB-IoT-kun stiller krav til både SIM-kortet og operatøren - se
+[`README.md`](README.md), afsnittet "Krav til SIM-kort og operatør".
+
 ## Relevant, men endnu ikke konfigureret
 
 - **Board-target**: skal være `thingy91x/nrf9151/ns` (non-secure), da
   `NRF_MODEM_LIB` ellers ikke kan slås til. Se rod-README.
-- **PSM/eDRX/NB-IoT-specifikke indstillinger** (fx `CONFIG_LTE_LC_PSM_MODULE`,
-  `CONFIG_LTE_LC_EDRX_MODULE`, `CONFIG_LTE_NETWORK_MODE_NBIOT`) hører til
-  strømforbrugs-issues, ikke grundopsætningen.
+- **PSM/eDRX-indstillinger** (fx `CONFIG_LTE_LC_PSM_MODULE` og
+  `CONFIG_LTE_LC_EDRX_MODULE`) hører til strømforbrugs-issues, ikke
+  grundopsætningen.
 - **TLS-indstillinger til `MQTT_HELPER`** (certifikater, `sec_tag`) hører til
   "Sikker kommunikation: TLS + MQTT"-issuen.

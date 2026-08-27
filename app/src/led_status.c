@@ -70,11 +70,7 @@ int led_status_set(enum led_status status)
 	case LED_STATUS_CONNECTING:
 		blue = UINT8_MAX;
 		break;
-	case LED_STATUS_CONNECTED_LTE_M:
-		green = UINT8_MAX;
-		break;
-	case LED_STATUS_CONNECTED_NB_IOT:
-		red = UINT8_MAX;
+	case LED_STATUS_CONNECTED:
 		green = UINT8_MAX;
 		break;
 	case LED_STATUS_DISCONNECTED:

@@ -1,15 +1,27 @@
 # AITSM cellular connection
 
 Zephyr-app til Nordic Thingy:91 X (`thingy91x/nrf9151/ns`). Applikationen
-initialiserer nRF9151-modemet og etablerer en LTE-forbindelse via SIM-kortet.
-LTE-M og NB-IoT er aktiveret, så modemmet kan vælge en understøttet teknologi.
+initialiserer nRF9151-modemet og etablerer en NB-IoT-forbindelse via SIM-kortet.
+Modemet er konfigureret til udelukkende at bruge NB-IoT (issue #25); LTE-M og
+kombinationsmoden er deaktiveret, så enheden aldrig falder tilbage til LTE-M.
 
 RGB-LED'en viser forbindelsesstatus:
 
 - Blå: søger efter LTE-netværk eller forbinder.
-- Grøn: LTE-M-forbindelse er aktiv.
-- Gul: NB-IoT-forbindelse er aktiv.
+- Grøn: NB-IoT-forbindelsen er aktiv.
 - Rød: ingen forbindelse eller fejl.
+
+## Krav til SIM-kort og operatør
+
+Fordi enheden kun kan bruge NB-IoT, skal både SIM-kortet og mobiloperatøren
+understøtte NB-IoT, før en forbindelse kan etableres:
+
+- SIM-kortet skal være et IoT-abonnement med NB-IoT (et ren LTE-M- eller
+  tale-/dataabonnement uden NB-IoT virker ikke).
+- Operatøren skal have NB-IoT-dækning på det sted, enheden skal stå.
+- Ved forbindelsesproblemer: kontrollér først operatørens NB-IoT-dækning og
+  abonnementet, og se derefter i den serielle log om modemmet rapporterer
+  `LTE mode: NB-IoT` og `LTE registered ...`.
 
 Boardet bygges som **non-secure (`/ns`)**, fordi `CONFIG_NRF_MODEM_LIB` kræver
 `CONFIG_TRUSTED_EXECUTION_NONSECURE=y`, som kun sættes af `ns`-varianten af
@@ -59,7 +71,18 @@ nrfutil device program \
 ```
 
 Åbn en seriel terminal efter flash. Ved en vellykket forbindelse vises
-`LTE registered ...` og `LTE mode: LTE-M` eller `LTE mode: NB-IoT` i loggen.
-LED'en lyser grøn ved LTE-M og gul ved NB-IoT. Før registrering lyser LED'en
-blå; ved mistet forbindelse bliver den rød, mens modemmet forsøger at
-genoprette forbindelsen.
+`LTE registered ...` og `LTE mode: NB-IoT` i loggen. LED'en lyser grøn, når
+NB-IoT-forbindelsen er aktiv. Før registrering lyser LED'en blå; ved mistet
+forbindelse bliver den rød, mens modemmet forsøger at genoprette forbindelsen.
+Logger modemmet en uventet LTE-mode (fx LTE-M), er konfigurationen eller
+netværket ikke NB-IoT-kompatibelt.
+
+## Test
+
+Se [`../tests/README.md`](../tests/README.md) for den automatiserede test, der
+verificerer NB-IoT-konfigurationen:
+
+```bash
+source scripts/activate-ncs.sh
+west twister -p thingy91x/nrf9151/ns -T tests
+```

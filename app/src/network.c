@@ -12,13 +12,12 @@ static void lte_event_handler(const struct lte_lc_evt *const event)
 	case LTE_LC_EVT_NW_REG_STATUS:
 		switch (event->nw_reg_status) {
 		case LTE_LC_NW_REG_REGISTERED_HOME:
-			printk("LTE registered on home network\n");
-			/* Use green as the connected fallback until the mode event arrives. */
-			(void)led_status_set(LED_STATUS_CONNECTED_LTE_M);
+			printk("LTE registered on home network (NB-IoT)\n");
+			(void)led_status_set(LED_STATUS_CONNECTED);
 			break;
 		case LTE_LC_NW_REG_REGISTERED_ROAMING:
-			printk("LTE registered while roaming\n");
-			(void)led_status_set(LED_STATUS_CONNECTED_LTE_M);
+			printk("LTE registered while roaming (NB-IoT)\n");
+			(void)led_status_set(LED_STATUS_CONNECTED);
 			break;
 		case LTE_LC_NW_REG_SEARCHING:
 			printk("Searching for LTE network\n");
@@ -32,17 +31,19 @@ static void lte_event_handler(const struct lte_lc_evt *const event)
 		}
 		break;
 	case LTE_LC_EVT_LTE_MODE_UPDATE:
+		/* The modem is configured for NB-IoT only, so any other mode
+		 * reported here is unexpected and worth a warning in the log.
+		 */
 		switch (event->lte_mode) {
-		case LTE_LC_LTE_MODE_LTEM:
-			printk("LTE mode: LTE-M\n");
-			(void)led_status_set(LED_STATUS_CONNECTED_LTE_M);
-			break;
 		case LTE_LC_LTE_MODE_NBIOT:
 			printk("LTE mode: NB-IoT\n");
-			(void)led_status_set(LED_STATUS_CONNECTED_NB_IOT);
+			break;
+		case LTE_LC_LTE_MODE_NONE:
+			printk("LTE mode: none\n");
 			break;
 		default:
-			printk("LTE mode: unknown (%d)\n", event->lte_mode);
+			printk("Warning: unexpected LTE mode %d; "
+			       "NB-IoT only is configured\n", event->lte_mode);
 			break;
 		}
 		break;
