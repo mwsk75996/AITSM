@@ -11,10 +11,16 @@ RGB-LED'en viser forbindelsesstatus:
 - Gul: NB-IoT-forbindelse er aktiv.
 - Rød: ingen forbindelse eller fejl.
 
+Boardet bygges som **non-secure (`/ns`)**, fordi `CONFIG_NRF_MODEM_LIB` kræver
+`CONFIG_TRUSTED_EXECUTION_NONSECURE=y`, som kun sættes af `ns`-varianten af
+boardet. Se [`KCONFIG.md`](KCONFIG.md) for en gennemgang af hver enkelt
+Kconfig-indstilling i `prj.conf`.
+
 ## Mappens filer
 
 - `CMakeLists.txt` kobler applikationen sammen med Zephyr-buildsystemet.
-- `prj.conf` aktiverer PWM, nRF-modem, LTE Link Control og IP-socket-offload.
+- `prj.conf` aktiverer PWM, nRF-modem, LTE Link Control, IP-socket-offload og
+  MQTT-understøttelse (se [`KCONFIG.md`](KCONFIG.md)).
 - `include/led_status.h` deklarerer LED-statusmodulets API.
 - `include/network.h` deklarerer netværksmodulets API.
 - `src/led_status.c` styrer RGB-LED'en.

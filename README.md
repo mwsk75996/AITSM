@@ -33,6 +33,14 @@ Board-target for Thingy:91 X med nRF9151 er:
 thingy91x/nrf9151/ns
 ```
 
+Boardet skal bygges som **non-secure (`/ns`)**, fordi `CONFIG_NRF_MODEM_LIB`
+(og dermed LTE/MQTT-funktionaliteten) kræver
+`CONFIG_TRUSTED_EXECUTION_NONSECURE=y`. Den secure-variant af boardet
+(`thingy91x/nrf9151` uden `/ns`) sætter ikke dette flag og kan derfor ikke
+bruge modembiblioteket. Se
+[`app/KCONFIG.md`](app/KCONFIG.md) for detaljer om de enkelte
+Kconfig-symboler.
+
 ### `scripts/` – aktivering af værktøjerne
 
 Filen `scripts/activate-ncs.sh` aktiverer de versioner af `west`, CMake,
@@ -131,6 +139,7 @@ SEGGER J-Link-probe.
 - `docs/` – projektdokumentation, krav og tekniske referencer
 - `scripts/` – hjælpeværktøjer til udviklingsmiljøet
 - `app/` – Zephyr-applikation til LTE-forbindelse på Thingy:91 X
+- `cloud/visualization/` – visualization-websitet og dets API
 - `build/` – lokale, genererede build-filer (ignoreres af Git)
 
 Se [dokumentationsoversigten](docs/README.md) for referencefiler, PDF’er og projektets baggrundsmateriale.
