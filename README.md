@@ -63,8 +63,11 @@ eksporterede variabler igen, når scriptet afslutter. Derfor bruges `source`.
   hvilke kildefiler der skal med.
 - `app/prj.conf` – aktiverer de nødvendige konfigurationer, herunder GPIO og
   PWM.
-- `app/src/main.c` – firmwarelogikken. Den bruger Thingy:91 X’s tre PWM-kanaler
-  til at fade glidende gennem RGB-farverne.
+- `app/include/led_fader.h` – offentlig funktion til at starte RGB-faderens
+  kontinuerlige loop.
+- `app/src/led_fader.c` – firmwarelogikken, som bruger Thingy:91 X’s tre
+  PWM-kanaler til at fade glidende gennem RGB-farverne.
+- `app/src/main.c` – applikationens entrypoint, som starter LED-faderen.
 - `app/README.md` – en kort vejledning specifikt til blinky-applikationen.
 
 ### Build
