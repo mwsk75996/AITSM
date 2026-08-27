@@ -85,3 +85,13 @@ Data skal som minimum indeholde:
 - `device-id`
 - `timestamp`
 - Aflæste værdier
+
+## Lokalt udviklingsmiljø
+
+Det lokale udviklingsmiljø er sat op med nRF Connect SDK v3.4.0 og Zephyr 4.4.0 under `/home/matt/ncs`. Miljøet aktiveres fra projektroden med:
+
+```bash
+source scripts/activate-ncs.sh
+```
+
+Board-target for Thingy:91 X med nRF9151 er `thingy91x/nrf9151`.
