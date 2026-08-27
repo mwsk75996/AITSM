@@ -1,0 +1,21 @@
+Title:           ANSI/ISA-62443-4-2-2018, Security for industrial automation and control systems – Part 4-2: Technical security requirements for IACS components
+Subject:         
+Author:          ISA
+Creator:         Microsoft® Word for Office 365
+Producer:        Microsoft® Word for Office 365
+CreationDate:    Tue Sep 10 19:49:24 2019 CEST
+ModDate:         Mon Mar 30 17:55:35 2020 CEST
+Custom Metadata: no
+Metadata Stream: yes
+Tagged:          yes
+UserProperties:  no
+Suspects:        no
+Form:            none
+JavaScript:      no
+Pages:           98
+Encrypted:       no
+Page size:       612 x 792 pts (letter)
+Page rot:        0
+File size:       1766195 bytes
+Optimized:       no
+PDF version:     1.7
