@@ -50,6 +50,11 @@ eksempler og biblioteker (f.eks. certifikat-provisionering, sikre
 forbindelser via `sec_tag`). Gør det simplere at oprette en TLS-sikret
 MQTT-forbindelse end at bruge `MQTT_LIB` direkte.
 
+> ⚠️ **Ikke konfigureret endnu:** `MQTT_HELPER` er kun slået til her — der er
+> endnu ikke sat certifikater, `sec_tag` eller anden TLS-konfiguration op.
+> Uden det kan der ikke oprettes en reel sikker forbindelse. Det hører til
+> issue #7 ("Sikker kommunikation: TLS + MQTT").
+
 ## Cellulær forbindelse (nRF9151-modem)
 
 ### `CONFIG_NRF_MODEM_LIB=y`
