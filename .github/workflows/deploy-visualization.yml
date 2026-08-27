@@ -64,7 +64,7 @@ jobs:
 
           SSH_OPTIONS="-i $HOME/.ssh/deploy_key -p ${VPS_PORT:-22} -o BatchMode=yes"
           ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" "mkdir -p '$REMOTE_PATH'"
-          rsync --archive --compress --delete \
+          rsync --archive --omit-dir-times --compress --delete \
             --exclude='.env' \
             --exclude='.env.*' \
             -e "ssh $SSH_OPTIONS" \
