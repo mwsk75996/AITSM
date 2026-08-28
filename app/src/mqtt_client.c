@@ -21,11 +21,20 @@ LOG_MODULE_REGISTER(mqtt_client, LOG_LEVEL_INF);
 
 #define AITSM_MQTT_HOSTNAME "aitsm.vps.webdock.cloud"
 #define AITSM_MQTT_CLIENT_ID "thingy91x"
+#define AITSM_MQTT_TOPIC "aitsm/thingy91x/telemetry"
+#define AITSM_MQTT_TEST_PAYLOAD \
+	"{\"device_id\":\"thingy91x\",\"temperature\":0.0," \
+	"\"battery\":100.0,\"test\":true}"
 
 static char hostname[] = AITSM_MQTT_HOSTNAME;
 static char client_id[] = AITSM_MQTT_CLIENT_ID;
 static char username[] = AITSM_MQTT_USERNAME;
 static char password[] = AITSM_MQTT_PASSWORD;
+static char publish_topic[] = AITSM_MQTT_TOPIC;
+static char test_payload[] = AITSM_MQTT_TEST_PAYLOAD;
+
+static void mqtt_publish_test_work_handler(struct k_work *work);
+static K_WORK_DEFINE(mqtt_publish_test_work, mqtt_publish_test_work_handler);
 
 static struct mqtt_helper_conn_params conn_params = {
 	.hostname = {
@@ -52,6 +61,7 @@ static void mqtt_on_connack(enum mqtt_conn_return_code return_code,
 	if (return_code == MQTT_CONNECTION_ACCEPTED) {
 		LOG_INF("Forbundet til cloud MQTT over TLS%s",
 			session_present ? " med eksisterende session" : "");
+		(void)k_work_submit(&mqtt_publish_test_work);
 		return;
 	}
 
@@ -68,13 +78,55 @@ static void mqtt_on_error(enum mqtt_helper_error error)
 	LOG_ERR("MQTT-helper fejl: %d", error);
 }
 
+static void mqtt_on_puback(uint16_t message_id, int result)
+{
+	if (result == 0) {
+		LOG_INF("MQTT-testbesked bekræftet, message id: %u", message_id);
+		return;
+	}
+
+	LOG_ERR("MQTT-testbesked blev ikke bekræftet, message id: %u, resultat: %d",
+		message_id, result);
+}
+
 static struct mqtt_helper_cfg mqtt_cfg = {
 	.cb = {
 		.on_connack = mqtt_on_connack,
 		.on_disconnect = mqtt_on_disconnect,
+		.on_puback = mqtt_on_puback,
 		.on_error = mqtt_on_error,
 	},
 };
+
+static void mqtt_publish_test_work_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	struct mqtt_publish_param param = {
+		.message = {
+			.payload = {
+				.data = test_payload,
+				.len = sizeof(test_payload) - 1,
+			},
+			.topic = {
+				.qos = MQTT_QOS_1_AT_LEAST_ONCE,
+				.topic = {
+					.utf8 = publish_topic,
+					.size = sizeof(publish_topic) - 1,
+				},
+			},
+		},
+		.message_id = mqtt_helper_msg_id_get(),
+	};
+
+	int err = mqtt_helper_publish(&param);
+	if (err != 0) {
+		LOG_ERR("Kunne ikke sende MQTT-testbesked: %d", err);
+		return;
+	}
+
+	LOG_INF("MQTT-testbesked sendt til %s", publish_topic);
+}
 
 static void mqtt_connect_work_handler(struct k_work *work)
 {
