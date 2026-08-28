@@ -50,10 +50,22 @@ eksempler og biblioteker (f.eks. certifikat-provisionering, sikre
 forbindelser via `sec_tag`). Gør det simplere at oprette en TLS-sikret
 MQTT-forbindelse end at bruge `MQTT_LIB` direkte.
 
-> ⚠️ **Ikke konfigureret endnu:** `MQTT_HELPER` er kun slået til her — der er
-> endnu ikke sat certifikater, `sec_tag` eller anden TLS-konfiguration op.
-> Uden det kan der ikke oprettes en reel sikker forbindelse. Det hører til
-> issue #7 ("Sikker kommunikation: TLS + MQTT").
+`MQTT_HELPER` bruges her sammen med TLS-konfigurationen nedenfor til den reelle
+sikre forbindelse. Certifikatfilen er den offentlige Let’s Encrypt CA; ingen
+server- eller klient-private nøgler er nødvendige for denne broker.
+
+### TLS og MQTT-helper
+
+`CONFIG_MQTT_LIB_TLS=y` aktiverer MQTT over TLS. `CONFIG_MQTT_HELPER_PORT=8883`
+vælger brokerens TLS-port, og `CONFIG_MQTT_HELPER_SEC_TAG=42` er den interne
+security tag, som certifikatet registreres under. `CONFIG_MODEM_KEY_MGMT=y`
+gør det muligt at registrere den offentlige Let’s Encrypt CA direkte i
+nRF9151-modemmet ved opstart, hvilket er den metode Nordics nRF91-sample bruger.
+Der lægges ingen privat nøgle eller MQTT-password i repository’et.
+
+Ved et lokalt build skal MQTT-passwordet leveres via miljøvariablen
+`AITSM_MQTT_PASSWORD`; CMake genererer derefter en header i den ignorerede
+build-mappe. Mangler passwordet, stopper firmwaren før LTE-forbindelsen startes.
 
 ## Cellulær forbindelse (nRF9151-modem)
 
@@ -96,5 +108,3 @@ NB-IoT-kun stiller krav til både SIM-kortet og operatøren - se
 - **PSM/eDRX-indstillinger** (fx `CONFIG_LTE_LC_PSM_MODULE` og
   `CONFIG_LTE_LC_EDRX_MODULE`) hører til strømforbrugs-issues, ikke
   grundopsætningen.
-- **TLS-indstillinger til `MQTT_HELPER`** (certifikater, `sec_tag`) hører til
-  "Sikker kommunikation: TLS + MQTT"-issuen.
