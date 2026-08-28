@@ -144,5 +144,3 @@ SEGGER J-Link-probe.
 - `build/` – lokale, genererede build-filer (ignoreres af Git)
 
 Se [dokumentationsoversigten](docs/README.md) for referencefiler, PDF’er og projektets baggrundsmateriale.
-
-Lavet af Thomas kun Thomas
