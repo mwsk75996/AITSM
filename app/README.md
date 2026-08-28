@@ -4,6 +4,9 @@ Zephyr-app til Nordic Thingy:91 X (`thingy91x/nrf9151/ns`). Applikationen
 initialiserer nRF9151-modemet og etablerer en NB-IoT-forbindelse via SIM-kortet.
 Modemet er konfigureret til udelukkende at bruge NB-IoT (issue #25); LTE-M og
 kombinationsmoden er deaktiveret, så enheden aldrig falder tilbage til LTE-M.
+Ved modeminitialisering provisioneres den offentlige Let’s Encrypt CA til
+nRF9151-modemmet. Efter LTE-registrering oprettes en TLS-sikret MQTT-forbindelse
+til `aitsm.vps.webdock.cloud:8883`.
 
 RGB-LED'en viser forbindelsesstatus:
 
@@ -36,6 +39,7 @@ Kconfig-indstilling i `prj.conf`.
 - `include/led_status.h` deklarerer LED-statusmodulets API.
 - `include/network.h` deklarerer netværksmodulets API.
 - `src/led_status.c` styrer RGB-LED'en.
+- `src/mqtt_client.c` opretter MQTT/TLS-forbindelsen efter LTE-registrering.
 - `src/network.c` initialiserer modemmet, starter LTE-forbindelsen og reagerer på
   ændringer i netværksregistreringen.
 - `src/main.c` initialiserer LED- og netværksmodulerne.
@@ -48,6 +52,16 @@ Fra projektroden:
 source scripts/activate-ncs.sh
 west build -b thingy91x/nrf9151/ns -d build/thingy91x_nrf9151 app
 ```
+
+Før build skal MQTT-passwordet sættes lokalt, eksempelvis fra en lokal secret
+manager:
+
+```bash
+export AITSM_MQTT_USERNAME=thingy91x
+export AITSM_MQTT_PASSWORD='password-fra-secret-manager'
+```
+
+Passwordet bliver ikke gemt i repository’et.
 
 Buildet genererer blandt andet `build/thingy91x_nrf9151/dfu_application.zip`.
 

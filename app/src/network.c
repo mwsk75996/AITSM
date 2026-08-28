@@ -4,6 +4,7 @@
 #include <modem/nrf_modem_lib.h>
 
 #include <led_status.h>
+#include <mqtt_client.h>
 #include <network.h>
 
 static void lte_event_handler(const struct lte_lc_evt *const event)
@@ -14,10 +15,12 @@ static void lte_event_handler(const struct lte_lc_evt *const event)
 		case LTE_LC_NW_REG_REGISTERED_HOME:
 			printk("LTE registered on home network (NB-IoT)\n");
 			(void)led_status_set(LED_STATUS_CONNECTED);
+			(void)aitsm_mqtt_connect();
 			break;
 		case LTE_LC_NW_REG_REGISTERED_ROAMING:
 			printk("LTE registered while roaming (NB-IoT)\n");
 			(void)led_status_set(LED_STATUS_CONNECTED);
+			(void)aitsm_mqtt_connect();
 			break;
 		case LTE_LC_NW_REG_SEARCHING:
 			printk("Searching for LTE network\n");
@@ -60,6 +63,12 @@ int network_init(void)
 	err = nrf_modem_lib_init();
 	if (err != 0) {
 		printk("Modem initialization failed, error: %d\n", err);
+		(void)led_status_set(LED_STATUS_ERROR);
+		return err;
+	}
+
+	err = aitsm_mqtt_init();
+	if (err != 0) {
 		(void)led_status_set(LED_STATUS_ERROR);
 		return err;
 	}
