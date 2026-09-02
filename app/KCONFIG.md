@@ -103,8 +103,6 @@ NB-IoT-kun stiller krav til både SIM-kortet og operatøren - se
 
 ## Relevant, men endnu ikke konfigureret
 
-- **Board-target**: skal være `thingy91x/nrf9151/ns` (non-secure), da
-  `NRF_MODEM_LIB` ellers ikke kan slås til. Se rod-README.
 - **PSM/eDRX-indstillinger** (fx `CONFIG_LTE_LC_PSM_MODULE` og
   `CONFIG_LTE_LC_EDRX_MODULE`) hører til strømforbrugs-issues, ikke
   grundopsætningen.
