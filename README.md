@@ -41,6 +41,15 @@ bruge modembiblioteket. Se
 [`app/KCONFIG.md`](app/KCONFIG.md) for detaljer om de enkelte
 Kconfig-symboler.
 
+## Devicetree og memory layout
+
+Firmware bruger Nordic's standard-devicetree for `thingy91x/nrf9151/ns`. Der er
+ingen projektspecifik `.overlay` til GPIO eller andre board-ændringer; RGB-LED
+og øvrige standardfunktioner hentes fra boardets egen devicetree.
+
+Memory layout ændres heller ikke manuelt. Det håndteres af NCS' standard
+Partition Manager samt MCUboot-overlays, som genereres under buildet.
+
 ### `scripts/` – aktivering af værktøjerne
 
 Filen `scripts/activate-ncs.sh` aktiverer de versioner af `west`, CMake,
