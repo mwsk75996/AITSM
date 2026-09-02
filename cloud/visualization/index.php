@@ -34,7 +34,7 @@
 
     <main class="container" id="indhold">
         <section class="hero">
-            <p class="eyebrow">Live fra feltet!</p>
+            <p class="eyebrow" id="eyebrow-message">Live fra feltet!</p>
             <h1>Seneste<br>målinger</h1>
             <p class="lead">Friske tal fra vores Nordic Thingy:91 X-enheder. Siden henter selv nyt hvert 30. sekund — du skal bare glo.</p>
         </section>
@@ -73,12 +73,14 @@
                 </div>
 
                 <div class="segmented" role="group" aria-label="Vælg visning">
-                    <button type="button" class="segment" id="view-cards" aria-pressed="true">Kort</button>
+                    <button type="button" class="segment" id="view-chart" aria-pressed="true">Graf</button>
                     <button type="button" class="segment" id="view-table" aria-pressed="false">Tabel</button>
                 </div>
             </div>
 
-            <div class="device-grid" id="device-grid" aria-busy="true"></div>
+            <div class="chart-card" id="chart-card" aria-busy="true">
+                <div class="chart" id="device-chart" role="img" aria-label="Søjlediagram over enhedstemperaturer"></div>
+            </div>
 
             <div class="table-card" id="table-card" hidden>
                 <table class="table" role="table" aria-labelledby="readings-title" aria-busy="true" id="readings-table">
