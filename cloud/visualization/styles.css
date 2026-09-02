@@ -465,38 +465,36 @@ main.container {
     color: #14110f;
 }
 
-/* Enhedskort */
+/* Grafvisning */
 
-.device-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-    gap: 1.75rem 1.5rem;
-}
-
-.device {
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+.chart-card {
+    padding: 1.75rem 1.5rem 1.5rem;
     border: var(--line) solid var(--ink);
     border-radius: var(--radius);
     background: var(--card);
     box-shadow: var(--shadow);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.25rem;
+    height: 18rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.25rem;
+}
+
+.chart-bar {
+    display: flex;
+    flex: 1 1 5.5rem;
+    min-width: 4.5rem;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
     animation: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
     animation-delay: calc(var(--i, 0) * 70ms);
-}
-
-.device:nth-child(odd) {
-    transform: rotate(-1deg);
-}
-
-.device:nth-child(even) {
-    transform: rotate(1deg);
-}
-
-.device:hover {
-    transform: rotate(0deg) translate(-3px, -3px);
-    box-shadow: var(--shadow-lg);
 }
 
 @keyframes pop {
@@ -506,93 +504,87 @@ main.container {
     }
 }
 
-.device-top {
+.chart-bar-value {
+    font-weight: 900;
+    font-size: 0.9375rem;
+    margin-bottom: 0.5rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.chart-bar-track {
+    position: relative;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
+    align-items: flex-end;
+    width: 100%;
+    flex: 1;
+    border: var(--line) solid var(--ink);
     border-bottom: var(--line) solid var(--ink);
-    color: #14110f;
+    border-radius: 10px 10px 4px 4px;
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
 }
 
-.device[data-color="0"] .device-top {
-    background: var(--yellow);
+.chart-bar-fill {
+    display: block;
+    width: 100%;
+    border-top: var(--line) solid var(--ink);
+    transition: height 0.4s ease;
 }
 
-.device[data-color="1"] .device-top {
-    background: var(--cyan);
+.chart-bar[data-color="0"] .chart-bar-fill { background: var(--yellow); }
+.chart-bar[data-color="1"] .chart-bar-fill { background: var(--cyan); }
+.chart-bar[data-color="2"] .chart-bar-fill { background: var(--pink); }
+.chart-bar[data-color="3"] .chart-bar-fill { background: var(--lime); }
+.chart-bar[data-color="4"] .chart-bar-fill { background: var(--purple); }
+.chart-bar[data-color="5"] .chart-bar-fill { background: var(--orange); }
+
+.chart-bar:hover .chart-bar-track {
+    box-shadow: var(--shadow-lg);
 }
 
-.device[data-color="2"] .device-top {
-    background: var(--pink);
+.chart-bar-batt {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 0.5rem;
+    margin-top: 0.625rem;
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    background: #fffdf7;
+    overflow: hidden;
+    flex: none;
 }
 
-.device[data-color="3"] .device-top {
-    background: var(--lime);
+.chart-bar-batt::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: var(--batt, 0%);
+    background: var(--ok);
 }
 
-.device[data-color="4"] .device-top {
-    background: var(--purple);
+.chart-bar-batt[data-level="low"]::after {
+    background: var(--warn);
 }
 
-.device[data-color="5"] .device-top {
-    background: var(--orange);
+.chart-bar-batt[data-level="critical"]::after {
+    background: var(--bad);
 }
 
-.device-id {
-    font-family: var(--font-mono);
-    font-size: 0.875rem;
-    font-weight: 700;
-    word-break: break-all;
+.chart-bar-batt[data-level="unknown"]::after {
+    background: repeating-linear-gradient(45deg, #ccc 0 4px, #eee 4px 8px);
+    width: 100%;
 }
 
-.device-body {
-    padding: 1.375rem 1rem 1rem;
-}
-
-.device-temp {
-    display: flex;
-    align-items: baseline;
-    gap: 0.375rem;
-    font-variant-numeric: tabular-nums;
-}
-
-.temp-value {
-    font-size: 3.5rem;
-    font-weight: 900;
-    letter-spacing: -0.06em;
-    line-height: 0.9;
-}
-
-.temp-unit {
-    font-size: 1.5rem;
-    font-weight: 900;
-}
-
-.device-meta {
+.chart-bar-label {
     margin-top: 0.5rem;
-    font-size: 0.8125rem;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--ink-soft);
-}
-
-.device-foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin-top: 1.25rem;
-    padding-top: 0.875rem;
-    border-top: var(--line) dashed var(--ink);
-    font-size: 0.8125rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
     font-weight: 700;
-}
-
-.device-foot time {
-    font-variant-numeric: tabular-nums;
+    text-align: center;
+    word-break: break-all;
+    flex: none;
 }
 
 /* Batteri tegnet som et batteri */
@@ -828,6 +820,17 @@ main.container {
     height: 1.5rem;
 }
 
+.skeleton-bar-fill {
+    width: 100%;
+    border-radius: 0;
+}
+
+.skeleton-batt-bar {
+    width: 100%;
+    height: 0.5rem;
+    border-radius: 999px;
+}
+
 .cell-numeric .skeleton {
     margin-left: auto;
 }
@@ -884,9 +887,17 @@ main.container {
         font-size: 1.875rem;
     }
 
-    .device-grid {
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
+    .chart-card {
+        padding: 1.25rem 1rem 1rem;
+    }
+
+    .chart {
+        height: 14rem;
+        gap: 0.75rem;
+    }
+
+    .chart-bar {
+        min-width: 3.25rem;
     }
 
     .section-bar {
