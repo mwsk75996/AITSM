@@ -79,7 +79,12 @@
             </div>
 
             <div class="chart-card" id="chart-card" aria-busy="true">
-                <div class="chart" id="device-chart" role="img" aria-label="Søjlediagram over enhedstemperaturer"></div>
+                <div class="chart-plot">
+                    <svg class="chart" id="device-chart" preserveAspectRatio="none" role="img" aria-label="Linjediagram over enhedstemperaturer over tid"></svg>
+                    <div class="chart-axis" id="chart-axis" aria-hidden="true"></div>
+                    <div class="chart-state" id="chart-state" hidden></div>
+                </div>
+                <ul class="chart-legend" id="chart-legend" aria-label="Forklaring til graf"></ul>
             </div>
 
             <div class="table-card" id="table-card" hidden>
