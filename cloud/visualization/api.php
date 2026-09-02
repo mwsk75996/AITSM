@@ -9,7 +9,7 @@ header('X-Content-Type-Options: nosniff');
 $query = <<<'SQL'
 SELECT timestamp, device_id, temperature, battery
 FROM sensor_readings
-LATEST ON timestamp PARTITION BY device_id;
+ORDER BY timestamp DESC;
 SQL;
 
 try {

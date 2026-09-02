@@ -190,8 +190,8 @@ function renderSkeleton() {
 function renderSummary(readings) {
     readingCount.textContent = readings.length.toLocaleString('da-DK');
     readingCountHint.textContent = readings.length === 1
-        ? 'enhed rapporterer data'
-        : 'enheder rapporterer data';
+        ? 'måling i historikken'
+        : 'målinger i historikken';
 
     const temperatures = readings.map((reading) => toNumber(reading.temperature)).filter((value) => value !== null);
     const batteries = readings.map((reading) => toNumber(reading.battery)).filter((value) => value !== null);
