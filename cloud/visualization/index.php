@@ -71,23 +71,9 @@
                     <h2 id="readings-title">Enhederne</h2>
                     <p class="section-description">Seneste registrering pr. enhed.</p>
                 </div>
-
-                <div class="segmented" role="group" aria-label="Vælg visning">
-                    <button type="button" class="segment" id="view-chart" aria-pressed="true">Graf</button>
-                    <button type="button" class="segment" id="view-table" aria-pressed="false">Tabel</button>
-                </div>
             </div>
 
-            <div class="chart-card" id="chart-card" aria-busy="true">
-                <div class="chart-plot">
-                    <svg class="chart" id="device-chart" preserveAspectRatio="none" role="img" aria-label="Linjediagram over enhedstemperaturer over tid"></svg>
-                    <div class="chart-axis" id="chart-axis" aria-hidden="true"></div>
-                    <div class="chart-state" id="chart-state" hidden></div>
-                </div>
-                <ul class="chart-legend" id="chart-legend" aria-label="Forklaring til graf"></ul>
-            </div>
-
-            <div class="table-card" id="table-card" hidden>
+            <div class="table-card" id="table-card">
                 <table class="table" role="table" aria-labelledby="readings-title" aria-busy="true" id="readings-table">
                     <thead role="rowgroup">
                         <tr role="row">
