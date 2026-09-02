@@ -1,9 +1,9 @@
 # Visualization
 
-Denne mappe indeholder den første version af visualization-websitet.
+Denne mappe indeholder visualization-websitet (vanilla PHP/CSS/JS, intet build-step).
 
 - `index.php` – websidens entrypoint
-- `styles.css` – layout og styling
+- `styles.css` – layout og styling (shadcn-inspireret designsystem med CSS custom properties og dark mode)
 - `app.js` – henter og viser seneste måling pr. enhed
 - `api.php` – read-only endpoint mod QuestDB-tabellen `sensor_readings`
 
