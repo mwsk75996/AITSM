@@ -4,6 +4,7 @@
 #include <modem/nrf_modem_lib.h>
 
 #include <led_status.h>
+#include <app_controller.h>
 #include <mqtt_client.h>
 #include <network.h>
 
@@ -14,22 +15,21 @@ static void lte_event_handler(const struct lte_lc_evt *const event)
 		switch (event->nw_reg_status) {
 		case LTE_LC_NW_REG_REGISTERED_HOME:
 			printk("LTE registered on home network (NB-IoT)\n");
-			(void)led_status_set(LED_STATUS_CONNECTED);
-			(void)aitsm_mqtt_connect();
+			(void)aitsm_app_post_event(AITSM_APP_EVENT_LTE_CONNECTED, 0);
 			break;
 		case LTE_LC_NW_REG_REGISTERED_ROAMING:
 			printk("LTE registered while roaming (NB-IoT)\n");
-			(void)led_status_set(LED_STATUS_CONNECTED);
-			(void)aitsm_mqtt_connect();
+			(void)aitsm_app_post_event(AITSM_APP_EVENT_LTE_CONNECTED, 0);
 			break;
 		case LTE_LC_NW_REG_SEARCHING:
 			printk("Searching for LTE network\n");
-			(void)led_status_set(LED_STATUS_CONNECTING);
+			(void)aitsm_app_post_event(AITSM_APP_EVENT_LTE_SEARCHING, 0);
 			break;
 		default:
 			printk("LTE not registered, status: %d\n",
 			       event->nw_reg_status);
-			(void)led_status_set(LED_STATUS_DISCONNECTED);
+			(void)aitsm_app_post_event(AITSM_APP_EVENT_LTE_DISCONNECTED,
+					   event->nw_reg_status);
 			break;
 		}
 		break;

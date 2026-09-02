@@ -37,12 +37,32 @@ Kconfig-indstilling i `prj.conf`.
 - `prj.conf` aktiverer PWM, nRF-modem, LTE Link Control, IP-socket-offload og
   MQTT-understøttelse (se [`KCONFIG.md`](KCONFIG.md)).
 - `include/led_status.h` deklarerer LED-statusmodulets API.
+- `include/app_controller.h` deklarerer events mellem netværkslagene og
+  applikationslogikken.
 - `include/network.h` deklarerer netværksmodulets API.
+- `src/app_controller.c` er applikationslogikken og dens message queue.
 - `src/led_status.c` styrer RGB-LED'en.
 - `src/mqtt_client.c` opretter MQTT/TLS-forbindelsen efter LTE-registrering.
 - `src/network.c` initialiserer modemmet, starter LTE-forbindelsen og reagerer på
   ændringer i netværksregistreringen.
 - `src/main.c` initialiserer LED- og netværksmodulerne.
+
+## Tråd- og eventstruktur
+
+LTE- og MQTT-bibliotekerne arbejder asynkront. Deres callbacks udfører derfor
+kun let behandling og lægger events i applikationslogikkens message queue.
+Events behandles i Zephyrs system-workqueue, som er en separat Zephyr-
+trådkontekst. Den håndterer forbindelsesstatus og starter MQTT efter en
+vellykket LTE-registrering. På den måde deles callback-data ikke direkte
+mellem modulerne.
+
+Afviste eller afbrudte MQTT-forbindelser, helper-fejl og publish-resultater
+følger samme event-flow og logges centralt af applikationscontrolleren. Den
+konkrete reconnect-strategi og genafsendelse af buffrede målinger kobles på,
+når afsendelsesbufferen implementeres.
+
+Måle- og batchinglogik implementeres separat. Denne struktur fastlægger kun
+modulernes ansvar og synkroniseringen mellem netværkslagene og applikationen.
 
 ## Build
 
