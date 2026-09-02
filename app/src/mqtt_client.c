@@ -109,11 +109,26 @@ static void mqtt_publish_test_work_handler(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
+	int err = aitsm_mqtt_publish_payload(test_payload, sizeof(test_payload) - 1);
+	if (err != 0) {
+		LOG_ERR("Kunne ikke sende MQTT-testbesked: %d", err);
+		return;
+	}
+
+	LOG_INF("MQTT-testbesked sendt til %s", publish_topic);
+}
+
+int aitsm_mqtt_publish_payload(const char *payload, size_t payload_length)
+{
+	if (payload == NULL || payload_length == 0) {
+		return -EINVAL;
+	}
+
 	struct mqtt_publish_param param = {
 		.message = {
 			.payload = {
-				.data = test_payload,
-				.len = sizeof(test_payload) - 1,
+				.data = (uint8_t *)payload,
+				.len = payload_length,
 			},
 			.topic = {
 				.qos = MQTT_QOS_1_AT_LEAST_ONCE,
@@ -127,12 +142,7 @@ static void mqtt_publish_test_work_handler(struct k_work *work)
 	};
 
 	int err = mqtt_helper_publish(&param);
-	if (err != 0) {
-		LOG_ERR("Kunne ikke sende MQTT-testbesked: %d", err);
-		return;
-	}
-
-	LOG_INF("MQTT-testbesked sendt til %s", publish_topic);
+	return err;
 }
 
 static void mqtt_connect_work_handler(struct k_work *work)

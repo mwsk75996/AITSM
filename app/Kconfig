@@ -1,0 +1,56 @@
+menu "AITSM data transmission"
+
+choice AITSM_TRANSMISSION_MODE
+	prompt "Transmission mode"
+	default AITSM_TRANSMISSION_BATCH
+	help
+		Select whether measurements are sent one at a time or collected
+		in a fixed-size batch before transmission.
+
+	config AITSM_TRANSMISSION_SINGLE
+		bool "Single measurement per MQTT message"
+
+	config AITSM_TRANSMISSION_BATCH
+		bool "Batch measurements before MQTT transmission"
+
+endchoice
+
+config AITSM_MEASUREMENT_INTERVAL_SECONDS
+	int "Measurement interval in seconds"
+	range 5 15
+	default 15
+	help
+		Interval used by the measurement producer. The allowed range follows
+		the project requirement; MQTT transmission may happen less often
+		when batching is selected.
+
+config AITSM_BATCH_INTERVAL_SECONDS
+	int "Batch transmission interval in seconds"
+	range 1 3600
+	default 300
+	depends on AITSM_TRANSMISSION_BATCH
+	help
+		Maximum time from the first measurement in a batch until the batch
+		is ready for transmission.
+
+config AITSM_BATCH_MAX_SAMPLES
+	int "Maximum measurements per batch"
+	range 1 64
+	default 20
+	depends on AITSM_TRANSMISSION_BATCH
+	help
+		Fixed upper bound for the in-memory measurement buffer. With the
+		default values, 20 measurements represent five minutes at 15-second
+		measurement intervals.
+
+config AITSM_TRANSMISSION_PAYLOAD_SIZE
+	int "Maximum telemetry payload size"
+	range 256 4096
+	default 2048
+	help
+		Maximum number of bytes reserved for a serialized telemetry
+		payload. The fixed limit prevents unbounded memory use.
+
+endmenu
+
+source "Kconfig.zephyr"

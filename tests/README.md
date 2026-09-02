@@ -20,3 +20,13 @@ en af følgende bryder:
   er slået til.
 
 Asserts står i [`nb_iot_config/src/config_asserts.c`](nb_iot_config/src/config_asserts.c).
+
+## `data_transmission/`
+
+Native Zephyr-test, der verificerer den faste målebuffer, timestamp-formatet,
+batch-flush efter standardprofilens fem minutter og single-mode. Testen bruger
+samme `data_transmission.c` som firmware-buildet og kan køres uden Thingy:
+
+```bash
+west twister -p native_sim -T tests/data_transmission
+```

@@ -36,11 +36,16 @@ Kconfig-indstilling i `prj.conf`.
 - `CMakeLists.txt` kobler applikationen sammen med Zephyr-buildsystemet.
 - `prj.conf` aktiverer PWM, nRF-modem, LTE Link Control, IP-socket-offload og
   MQTT-understøttelse (se [`KCONFIG.md`](KCONFIG.md)).
+- `Kconfig` indeholder den centrale konfiguration for måleinterval, single- og
+  batch-afsendelse samt faste buffergrænser.
 - `include/led_status.h` deklarerer LED-statusmodulets API.
 - `include/app_controller.h` deklarerer events mellem netværkslagene og
   applikationslogikken.
+- `include/data_transmission.h` deklarerer målebufferens og payload-lagets API.
 - `include/network.h` deklarerer netværksmodulets API.
 - `src/app_controller.c` er applikationslogikken og dens message queue.
+- `src/data_transmission.c` opbevarer målinger i en fast buffer og formaterer
+  single- eller batch-payloads.
 - `src/led_status.c` styrer RGB-LED'en.
 - `src/mqtt_client.c` opretter MQTT/TLS-forbindelsen efter LTE-registrering.
 - `src/network.c` initialiserer modemmet, starter LTE-forbindelsen og reagerer på
@@ -63,6 +68,27 @@ når afsendelsesbufferen implementeres.
 
 Måle- og batchinglogik implementeres separat. Denne struktur fastlægger kun
 modulernes ansvar og synkroniseringen mellem netværkslagene og applikationen.
+
+## Data- og transmissionsprofil
+
+Standardprofilen er måling hvert 15. sekund og batching med en maksimal
+afsendelsesfrekvens på fem minutter. Batch-bufferen kan indeholde 20 målinger,
+svarende til fem minutters data ved standardintervallet. Single-afsendelse kan
+vælges i Kconfig til test og fejlsøgning.
+
+Indstillingerne ændres centralt i `prj.conf` eller via et overlay:
+
+- `CONFIG_AITSM_MEASUREMENT_INTERVAL_SECONDS`: 5-15 sekunder.
+- `CONFIG_AITSM_TRANSMISSION_BATCH` eller
+  `CONFIG_AITSM_TRANSMISSION_SINGLE`.
+- `CONFIG_AITSM_BATCH_INTERVAL_SECONDS`: standard 300 sekunder.
+- `CONFIG_AITSM_BATCH_MAX_SAMPLES`: standard 20 målinger.
+
+Bufferen har fast størrelse og afviser nye målinger, når den er fuld. API'et
+understøtter først at fjerne målinger efter en vellykket MQTT-acknowledgement,
+så afsendelseslaget kan beholde data ved forbindelsesfejl. Den nuværende
+serialisering er et internt JSON-transportformat; SparkplugB-serialiseringen
+kan udskiftes bag `data_transmission`-API'et.
 
 ## Build
 

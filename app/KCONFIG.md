@@ -106,3 +106,34 @@ NB-IoT-kun stiller krav til både SIM-kortet og operatøren - se
 - **PSM/eDRX-indstillinger** (fx `CONFIG_LTE_LC_PSM_MODULE` og
   `CONFIG_LTE_LC_EDRX_MODULE`) hører til strømforbrugs-issues, ikke
   grundopsætningen.
+
+## AITSM data transmission
+
+De projektspecifikke `CONFIG_AITSM_*`-indstillinger ligger i [`Kconfig`](Kconfig)
+og gør transmissionsprofilen ændrbar uden kodeændringer.
+
+### `CONFIG_AITSM_MEASUREMENT_INTERVAL_SECONDS`
+
+Måleintervallet. Det er begrænset til 5-15 sekunder af Kconfig, mens MQTT-
+afsendelsen kan ske sjældnere, når batching er valgt. Standardværdien er 15
+sekunder.
+
+### `CONFIG_AITSM_TRANSMISSION_BATCH` og `CONFIG_AITSM_TRANSMISSION_SINGLE`
+
+En choice, der vælger mellem batching og én måling pr. MQTT-besked. Batching er
+standardprofilen; single er beregnet til test og fejlsøgning.
+
+### `CONFIG_AITSM_BATCH_INTERVAL_SECONDS`
+
+Maksimal tid fra første måling i en batch til batchen er klar til afsendelse.
+Standardværdien er 300 sekunder.
+
+### `CONFIG_AITSM_BATCH_MAX_SAMPLES`
+
+Fast øvre grænse for antallet af målinger i bufferens batch. Standardværdien er
+20, hvilket svarer til fem minutter ved et 15-sekunders måleinterval.
+
+### `CONFIG_AITSM_TRANSMISSION_PAYLOAD_SIZE`
+
+Fast maksimal payload-størrelse på 2048 bytes. Grænsen forhindrer ukontrolleret
+hukommelsesforbrug og giver plads til at skifte serializer senere.
