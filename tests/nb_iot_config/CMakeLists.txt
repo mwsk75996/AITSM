@@ -12,6 +12,8 @@ target_include_directories(app PRIVATE ${AITSM_APP_DIR}/include)
 target_sources(app PRIVATE
 	${AITSM_APP_DIR}/src/main.c
 	${AITSM_APP_DIR}/src/app_controller.c
+	${AITSM_APP_DIR}/src/data_transmission.c
+	${AITSM_APP_DIR}/src/measurement_service.c
 	${AITSM_APP_DIR}/src/led_status.c
 	${AITSM_APP_DIR}/src/mqtt_client.c
 	${AITSM_APP_DIR}/src/mqtt_credentials_provision.c

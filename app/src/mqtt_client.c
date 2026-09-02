@@ -23,20 +23,11 @@ LOG_MODULE_REGISTER(mqtt_client, LOG_LEVEL_INF);
 #define AITSM_MQTT_HOSTNAME "aitsm.vps.webdock.cloud"
 #define AITSM_MQTT_CLIENT_ID "thingy91x"
 #define AITSM_MQTT_TOPIC "aitsm/thingy91x/telemetry"
-#define AITSM_MQTT_TEST_PAYLOAD \
-	"{\"device_id\":\"thingy91x\",\"temperature\":0.0," \
-	"\"battery\":100.0,\"test\":true}"
-
 static char hostname[] = AITSM_MQTT_HOSTNAME;
 static char client_id[] = AITSM_MQTT_CLIENT_ID;
 static char username[] = AITSM_MQTT_USERNAME;
 static char password[] = AITSM_MQTT_PASSWORD;
 static char publish_topic[] = AITSM_MQTT_TOPIC;
-static char test_payload[] = AITSM_MQTT_TEST_PAYLOAD;
-
-static void mqtt_publish_test_work_handler(struct k_work *work);
-static K_WORK_DEFINE(mqtt_publish_test_work, mqtt_publish_test_work_handler);
-
 static struct mqtt_helper_conn_params conn_params = {
 	.hostname = {
 		.ptr = hostname,
@@ -63,7 +54,6 @@ static void mqtt_on_connack(enum mqtt_conn_return_code return_code,
 		LOG_INF("Forbundet til cloud MQTT over TLS%s",
 			session_present ? " med eksisterende session" : "");
 		(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_CONNECTED, 0);
-		(void)k_work_submit(&mqtt_publish_test_work);
 		return;
 	}
 
@@ -86,12 +76,12 @@ static void mqtt_on_error(enum mqtt_helper_error error)
 static void mqtt_on_puback(uint16_t message_id, int result)
 {
 	if (result == 0) {
-		LOG_INF("MQTT-testbesked bekræftet, message id: %u", message_id);
+		LOG_INF("MQTT-målepayload bekræftet, message id: %u", message_id);
 		(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_PUBLISH_RESULT, 0);
 		return;
 	}
 
-	LOG_ERR("MQTT-testbesked blev ikke bekræftet, message id: %u, resultat: %d",
+	LOG_ERR("MQTT-målepayload blev ikke bekræftet, message id: %u, resultat: %d",
 		message_id, result);
 	(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_PUBLISH_RESULT, result);
 }
@@ -105,15 +95,17 @@ static struct mqtt_helper_cfg mqtt_cfg = {
 	},
 };
 
-static void mqtt_publish_test_work_handler(struct k_work *work)
+int aitsm_mqtt_publish_payload(const char *payload, size_t payload_length)
 {
-	ARG_UNUSED(work);
+	if (payload == NULL || payload_length == 0) {
+		return -EINVAL;
+	}
 
 	struct mqtt_publish_param param = {
 		.message = {
 			.payload = {
-				.data = test_payload,
-				.len = sizeof(test_payload) - 1,
+				.data = (uint8_t *)payload,
+				.len = payload_length,
 			},
 			.topic = {
 				.qos = MQTT_QOS_1_AT_LEAST_ONCE,
@@ -127,12 +119,7 @@ static void mqtt_publish_test_work_handler(struct k_work *work)
 	};
 
 	int err = mqtt_helper_publish(&param);
-	if (err != 0) {
-		LOG_ERR("Kunne ikke sende MQTT-testbesked: %d", err);
-		return;
-	}
-
-	LOG_INF("MQTT-testbesked sendt til %s", publish_topic);
+	return err;
 }
 
 static void mqtt_connect_work_handler(struct k_work *work)

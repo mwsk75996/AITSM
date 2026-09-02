@@ -1,0 +1,13 @@
+tests:
+  aitsm.data_transmission:
+    platform_allow:
+      - native_sim
+    integration_platforms:
+      - native_sim
+  aitsm.data_transmission.single:
+    platform_allow:
+      - native_sim
+    integration_platforms:
+      - native_sim
+    extra_configs:
+      - CONFIG_AITSM_TRANSMISSION_SINGLE=y
