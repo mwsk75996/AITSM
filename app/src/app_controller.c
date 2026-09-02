@@ -3,6 +3,7 @@
 
 #include <app_controller.h>
 #include <led_status.h>
+#include <measurement_service.h>
 #include <mqtt_client.h>
 
 LOG_MODULE_REGISTER(app_controller, LOG_LEVEL_INF);
@@ -34,14 +35,17 @@ static void handle_event(const struct aitsm_app_event *event)
 		break;
 	case AITSM_APP_EVENT_MQTT_CONNECTED:
 		LOG_INF("Cloud MQTT event modtaget: forbundet");
+		aitsm_measurement_service_mqtt_connected();
 		break;
 	case AITSM_APP_EVENT_MQTT_DISCONNECTED:
 		LOG_WRN("Cloud MQTT event modtaget: afbrudt (%d)", event->value);
+		aitsm_measurement_service_mqtt_disconnected();
 		break;
 	case AITSM_APP_EVENT_MQTT_ERROR:
 		LOG_ERR("Cloud MQTT-fejl modtaget af applikationen: %d", event->value);
 		break;
 	case AITSM_APP_EVENT_MQTT_PUBLISH_RESULT:
+		aitsm_measurement_service_publish_result(event->value);
 		if (event->value == 0) {
 			LOG_INF("Cloud MQTT publish-event modtaget: succes");
 		} else {

@@ -46,6 +46,8 @@ Kconfig-indstilling i `prj.conf`.
 - `src/app_controller.c` er applikationslogikken og dens message queue.
 - `src/data_transmission.c` opbevarer målinger i en fast buffer og formaterer
   single- eller batch-payloads.
+- `src/measurement_service.c` læser modemtemperatur, nPM1300-batterispænding
+  og UTC-tid med det konfigurerede interval.
 - `src/led_status.c` styrer RGB-LED'en.
 - `src/mqtt_client.c` opretter MQTT/TLS-forbindelsen efter LTE-registrering.
 - `src/network.c` initialiserer modemmet, starter LTE-forbindelsen og reagerer på
@@ -62,12 +64,9 @@ vellykket LTE-registrering. På den måde deles callback-data ikke direkte
 mellem modulerne.
 
 Afviste eller afbrudte MQTT-forbindelser, helper-fejl og publish-resultater
-følger samme event-flow og logges centralt af applikationscontrolleren. Den
-konkrete reconnect-strategi og genafsendelse af buffrede målinger kobles på,
-når afsendelsesbufferen implementeres.
-
-Måle- og batchinglogik implementeres separat. Denne struktur fastlægger kun
-modulernes ansvar og synkroniseringen mellem netværkslagene og applikationen.
+følger samme event-flow og logges centralt af applikationscontrolleren.
+Måleservicen beholder bufferen ved fejl og sletter først målingerne efter et
+vellykket MQTT-acknowledgement.
 
 ## Data- og transmissionsprofil
 
@@ -89,6 +88,11 @@ understøtter først at fjerne målinger efter en vellykket MQTT-acknowledgement
 så afsendelseslaget kan beholde data ved forbindelsesfejl. Den nuværende
 serialisering er et internt JSON-transportformat; SparkplugB-serialiseringen
 kan udskiftes bag `data_transmission`-API'et.
+
+Batteriværdien er i første version et lineært estimat ud fra nPM1300-
+batterispændingen (3,2 V = 0 % og 4,2 V = 100 %). Det er tilstrækkeligt til
+pipeline-test, men bør kalibreres eller erstattes af en egentlig fuel-gauge-
+model før præcis batterirapportering.
 
 ## Build
 
