@@ -39,6 +39,7 @@ endif()
 target_include_directories(app PRIVATE include ${AITSM_GENERATED_INCLUDE_DIR})
 target_sources(app PRIVATE
 	src/main.c
+	src/app_controller.c
 	src/network.c
 	src/mqtt_client.c
 	src/mqtt_credentials_provision.c

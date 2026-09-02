@@ -7,6 +7,7 @@
 
 #include <net/mqtt_helper.h>
 
+#include <app_controller.h>
 #include <mqtt_client.h>
 
 #if __has_include("mqtt_credentials.h")
@@ -61,32 +62,38 @@ static void mqtt_on_connack(enum mqtt_conn_return_code return_code,
 	if (return_code == MQTT_CONNECTION_ACCEPTED) {
 		LOG_INF("Forbundet til cloud MQTT over TLS%s",
 			session_present ? " med eksisterende session" : "");
+		(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_CONNECTED, 0);
 		(void)k_work_submit(&mqtt_publish_test_work);
 		return;
 	}
 
 	LOG_ERR("MQTT-forbindelse afvist, return code: %d", return_code);
+	(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_ERROR, return_code);
 }
 
 static void mqtt_on_disconnect(int result)
 {
 	LOG_WRN("Cloud MQTT-forbindelse lukket, resultat: %d", result);
+	(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_DISCONNECTED, result);
 }
 
 static void mqtt_on_error(enum mqtt_helper_error error)
 {
 	LOG_ERR("MQTT-helper fejl: %d", error);
+	(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_ERROR, error);
 }
 
 static void mqtt_on_puback(uint16_t message_id, int result)
 {
 	if (result == 0) {
 		LOG_INF("MQTT-testbesked bekræftet, message id: %u", message_id);
+		(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_PUBLISH_RESULT, 0);
 		return;
 	}
 
 	LOG_ERR("MQTT-testbesked blev ikke bekræftet, message id: %u, resultat: %d",
 		message_id, result);
+	(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_PUBLISH_RESULT, result);
 }
 
 static struct mqtt_helper_cfg mqtt_cfg = {
@@ -135,6 +142,7 @@ static void mqtt_connect_work_handler(struct k_work *work)
 	int err = mqtt_helper_connect(&conn_params);
 	if (err != 0) {
 		LOG_ERR("Kunne ikke starte MQTT-forbindelse: %d", err);
+		(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_ERROR, err);
 	}
 }
 
