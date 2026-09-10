@@ -1,26 +1,72 @@
 # Visualization
 
-Denne mappe indeholder visualization-websitet (vanilla PHP/CSS/JS, intet build-step).
+Denne mappe indeholder visualization-websitet: en **React + Vite + TypeScript**-app
+med **shadcn/ui**-komponenter (Tailwind CSS). PHP-backenden ligger fortsat i
+`public/api.php` og bygges med ud til `dist/`.
 
-- `index.php` – websidens entrypoint
-- `styles.css` – layout og styling (shadcn-inspireret designsystem med CSS custom properties og dark mode)
-- `app.js` – henter og viser seneste måling pr. enhed
-- `api.php` – read-only endpoint mod QuestDB-tabellen `sensor_readings`
+## Struktur
 
-API’et bruger felterne `device_id`, `timestamp`, `temperature` og `battery`.
-Det henter den seneste række for hver enhed og opdateres automatisk hvert 30. sekund.
+- `index.html` – Vite-entrypoint
+- `src/` – React-kildekode
+  - `App.tsx` – layout og sammensætning af siden
+  - `components/ui/` – shadcn-komponenter (button, card, badge, table, select, skeleton)
+  - `components/` – app-specifikke komponenter (header, KPI-kort, tabel, batteri, paginering)
+  - `hooks/use-readings.ts` – datahentning, keyset-paginering og auto-refresh
+  - `lib/` – API-klient, formatering og typer
+- `public/api.php` – read-only endpoint mod QuestDB-tabellen `sensor_readings`
+- `vite.config.ts` – `base: './'` samt dev-proxy for `/api.php`
 
-Lokalt kan siden testes med PHP’s indbyggede server fra projektroden:
+API’et bruger felterne `device_id`, `timestamp`, `temperature` og `battery` og
+returnerer desuden `total`, `has_more`, `next_cursor` og `summary`. Siden henter
+den seneste historik med keyset-paginering og opdaterer automatisk hvert 30. sekund.
+
+## Lokal udvikling
+
+Installer afhængigheder:
 
 ```bash
-php -S localhost:8080 -t cloud/visualization
+cd cloud/visualization
+npm install
+```
+
+Kør PHP-endpointet og Vite-dev-serveren i hver sin terminal. Vite proxyer
+`/api.php` videre til PHP, så frontend altid kalder samme sti:
+
+```bash
+# Terminal 1 – PHP-backend
+php -S 127.0.0.1:8080 -t cloud/visualization/public
+
+# Terminal 2 – Vite-dev-server
+cd cloud/visualization && npm run dev
+```
+
+Åbn <http://localhost:5173>.
+
+Vil du teste det færdige build med PHP, kan `dist/` serveres direkte (her ligger
+både `index.html` og `api.php`):
+
+```bash
+cd cloud/visualization && npm run build
+php -S localhost:8080 -t cloud/visualization/dist
 ```
 
 Åbn derefter <http://localhost:8080>.
 
+## Scripts
+
+```bash
+npm run dev      # Vite-dev-server
+npm run build    # type-check + produktionsbuild til dist/
+npm run lint     # oxlint
+npm run preview  # preview af build (PHP kører ikke her)
+```
+
 ## GitHub Actions
 
 Workflowet kører ved push til `main`, når `cloud/visualization/**` er ændret.
+Det installerer Node, kører `npm ci`, `npm run lint` og `npm run build` og
+synkroniserer derefter `cloud/visualization/dist/` til VPS’en.
+
 Det kræver disse GitHub Secrets:
 
 - `VPS_HOST`
