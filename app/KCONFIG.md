@@ -137,3 +137,12 @@ Fast øvre grænse for antallet af målinger i bufferens batch. Standardværdien
 
 Fast maksimal payload-størrelse på 2048 bytes. Grænsen forhindrer ukontrolleret
 hukommelsesforbrug og giver plads til at skifte serializer senere.
+
+## AITSM logging
+
+### `CONFIG_AITSM_LOG_LEVEL`
+
+Standardlog-niveauet for alle AITSM-moduler, brugt i
+`LOG_MODULE_REGISTER(<modul>, CONFIG_AITSM_LOG_LEVEL)`. 0 = off, 1 = error,
+2 = warning, 3 = info (standard), 4 = debug. Sæt den til 4 lokalt for at se
+detaljeret debug-output, fx LTE-modeopdateringer og hver lagret måling.

@@ -15,7 +15,7 @@
 #include <measurement_service.h>
 #include <mqtt_client.h>
 
-LOG_MODULE_REGISTER(measurement_service, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(measurement_service, CONFIG_AITSM_LOG_LEVEL);
 
 #define BATTERY_EMPTY_MV 3200
 #define BATTERY_FULL_MV 4200
@@ -161,6 +161,10 @@ static void measurement_work_handler(struct k_work *work)
 		schedule_next_measurement();
 		return;
 	}
+
+	LOG_DBG("Måling tilføjet: temp %d, batteri %d",
+		measurement.temperature_centi_celsius,
+		measurement.battery_centi_percent);
 
 	now = measurement.timestamp;
 	if (aitsm_data_transmission_should_flush(now)) {

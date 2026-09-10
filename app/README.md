@@ -105,6 +105,21 @@ batterispændingen (3,2 V = 0 % og 4,2 V = 100 %). Det er tilstrækkeligt til
 pipeline-test, men bør kalibreres eller erstattes af en egentlig fuel-gauge-
 model før præcis batterirapportering.
 
+## Logning
+
+Alle moduler logger via Zephyrs logging-subsystem (`LOG_INF`/`LOG_WRN`/`LOG_ERR`/
+`LOG_DBG`) med tidsstempler til den serielle USB-konsol. Niveauet styres centralt
+med `CONFIG_AITSM_LOG_LEVEL` (0 = off, 1 = error, 2 = warning, 3 = info,
+4 = debug); standard er 3. Sæt den til 4 i `prj.conf` eller et overlay for mest
+mulig detalje lokalt:
+
+```text
+CONFIG_AITSM_LOG_LEVEL=4
+```
+
+LTE- og MQTT-hændelser samt fejl logges på info/warning/error, mens detaljer som
+LTE-mode og hver lagret måling kun vises på debug-niveau.
+
 ## Build
 
 Fra projektroden:

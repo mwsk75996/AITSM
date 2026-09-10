@@ -1,13 +1,15 @@
-#include <zephyr/sys/printk.h>
+#include <zephyr/logging/log.h>
 
 #include <modem/modem_key_mgmt.h>
 #include <modem/nrf_modem_lib.h>
+
+LOG_MODULE_REGISTER(mqtt_credentials_provision, CONFIG_AITSM_LOG_LEVEL);
 
 static const unsigned char ca_certificate[] = {
 #if __has_include("ca-cert.pem")
 #include "ca-cert.pem"
 #else
-""
+	""
 #endif
 };
 
@@ -16,12 +18,12 @@ static void on_modem_lib_init(int ret, void *ctx)
 	ARG_UNUSED(ctx);
 
 	if (ret != 0) {
-		printk("Modem library did not initialize: %d\n", ret);
+		LOG_ERR("Modem library did not initialize: %d", ret);
 		return;
 	}
 
 	if (sizeof(ca_certificate) <= 1) {
-		printk("MQTT CA certificate is missing\n");
+		LOG_ERR("MQTT CA certificate is missing");
 		return;
 	}
 
@@ -30,7 +32,9 @@ static void on_modem_lib_init(int ret, void *ctx)
 				   ca_certificate,
 				   sizeof(ca_certificate) - 1);
 	if (ret != 0) {
-		printk("MQTT CA certificate provisioning failed: %d\n", ret);
+		LOG_ERR("MQTT CA certificate provisioning failed: %d", ret);
+	} else {
+		LOG_DBG("MQTT CA certificate provisioned");
 	}
 }
 
