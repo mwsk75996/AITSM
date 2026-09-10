@@ -72,6 +72,20 @@ echo "$ZEPHYR_BASE"
 Hvis scriptet køres som `bash scripts/activate-ncs.sh`, forsvinder de
 eksporterede variabler igen, når scriptet afslutter. Derfor bruges `source`.
 
+Til at følge enhedens serielle debug-output findes `scripts/monitor-serial.py`.
+Det finder selv Thingy:91 X' konsolport (den laveste USB CDC-interface) via
+`/dev/serial/by-id` og streamer loggen ved 115200 8N1:
+
+```bash
+scripts/monitor-serial.py            # auto-detektér og stream
+scripts/monitor-serial.py --list     # vis fundne porte
+scripts/monitor-serial.py -p /dev/ttyACM0 -b 115200
+```
+
+Scriptet kræver `pyserial` (`pip install pyserial` eller
+`apt install python3-serial`). Har man ikke det, kan porten findes med
+`nrfutil device list` og læses manuelt med `stty`/`cat`.
+
 ### `app/` – selve Zephyr-applikationen
 
 `app/` er applikationens Zephyr-projekt. Det består af:
