@@ -30,3 +30,21 @@ samme `data_transmission.c` som firmware-buildet og kan køres uden Thingy:
 ```bash
 west twister -p native_sim -T tests/data_transmission
 ```
+
+## `led_status/`
+
+Native Zephyr-test uden hardware, der verificerer farve- og blinkmønstrene for
+hver LED-status samt at et midlertidigt publish-blink (succes eller fejl) vender
+tilbage til den seneste stabile forbindelsesstatus. Testen bruger samme
+`led_status.c` som firmware-buildet; PWM-delen er guardet med `DT_HAS_ALIAS`, så
+modulet kan bygges til `native_sim` uden en PWM-controller.
+
+```bash
+west twister -p native_sim -T tests/led_status
+```
+
+På værter uden 32-bit host-headere kan den 64-bit variant bruges i stedet:
+
+```bash
+west twister -p native_sim/native/64 -T tests/led_status
+```

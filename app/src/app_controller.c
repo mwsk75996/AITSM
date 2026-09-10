@@ -24,10 +24,10 @@ static void handle_event(const struct aitsm_app_event *event)
 {
 	switch (event->type) {
 	case AITSM_APP_EVENT_LTE_SEARCHING:
-		(void)led_status_set(LED_STATUS_CONNECTING);
+		(void)led_status_set(LED_STATUS_SEARCHING);
 		break;
 	case AITSM_APP_EVENT_LTE_CONNECTED:
-		(void)led_status_set(LED_STATUS_CONNECTED);
+		(void)led_status_set(LED_STATUS_LTE_CONNECTED);
 		(void)aitsm_mqtt_connect();
 		break;
 	case AITSM_APP_EVENT_LTE_DISCONNECTED:
@@ -35,22 +35,28 @@ static void handle_event(const struct aitsm_app_event *event)
 		break;
 	case AITSM_APP_EVENT_MQTT_CONNECTED:
 		LOG_INF("Cloud MQTT event modtaget: forbundet");
+		(void)led_status_set(LED_STATUS_MQTT_CONNECTED);
 		aitsm_measurement_service_mqtt_connected();
 		break;
 	case AITSM_APP_EVENT_MQTT_DISCONNECTED:
 		LOG_WRN("Cloud MQTT event modtaget: afbrudt (%d)", event->value);
+		/* LTE er stadig oppe, så vis den stabile LTE-status igen. */
+		(void)led_status_set(LED_STATUS_LTE_CONNECTED);
 		aitsm_measurement_service_mqtt_disconnected();
 		break;
 	case AITSM_APP_EVENT_MQTT_ERROR:
 		LOG_ERR("Cloud MQTT-fejl modtaget af applikationen: %d", event->value);
+		(void)led_status_set(LED_STATUS_ERROR);
 		break;
 	case AITSM_APP_EVENT_MQTT_PUBLISH_RESULT:
 		aitsm_measurement_service_publish_result(event->value);
 		if (event->value == 0) {
 			LOG_INF("Cloud MQTT publish-event modtaget: succes");
+			(void)led_status_set(LED_STATUS_PUBLISH_OK);
 		} else {
 			LOG_ERR("Cloud MQTT publish-event modtaget: fejl (%d)",
 				event->value);
+			(void)led_status_set(LED_STATUS_PUBLISH_ERROR);
 		}
 		break;
 	default:

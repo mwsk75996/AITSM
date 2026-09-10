@@ -8,11 +8,22 @@ Ved modeminitialisering provisioneres den offentlige Let’s Encrypt CA til
 nRF9151-modemmet. Efter LTE-registrering oprettes en TLS-sikret MQTT-forbindelse
 til `aitsm.vps.webdock.cloud:8883`.
 
-RGB-LED'en viser forbindelsesstatus:
+RGB-LED'en viser forbindelses- og afsendelsesstatus:
 
-- Blå: søger efter LTE-netværk eller forbinder.
-- Grøn: NB-IoT-forbindelsen er aktiv.
-- Rød: ingen forbindelse eller fejl.
+| Status | Farve og mønster |
+| --- | --- |
+| Søger efter LTE | Blå, blinkende |
+| LTE forbundet | Grøn, fast |
+| Cloud MQTT forbundet | Cyan, fast |
+| Ikke forbundet / generel fejl | Rød, fast |
+| Måling sendt korrekt | 5 korte hvide blink |
+| Fejl ved afsendelse | 5 korte røde blink |
+
+Et midlertidigt succes- eller fejlblink (fem korte hvide/røde blink) vises og
+vender derefter automatisk tilbage til den seneste stabile status —fx cyan, hvis
+MQTT stadig er forbundet. Al farvevalg og blinklogik ligger centralt i
+`src/led_status.c`, så netværks- og MQTT-laget kun angiver en status gennem
+`led_status_set()`.
 
 ## Krav til SIM-kort og operatør
 
@@ -38,7 +49,7 @@ Kconfig-indstilling i `prj.conf`.
   MQTT-understøttelse (se [`KCONFIG.md`](KCONFIG.md)).
 - `Kconfig` indeholder den centrale konfiguration for måleinterval, single- og
   batch-afsendelse samt faste buffergrænser.
-- `include/led_status.h` deklarerer LED-statusmodulets API.
+- `include/led_status.h` deklarerer LED-statusmodulets API og statusser.
 - `include/app_controller.h` deklarerer events mellem netværkslagene og
   applikationslogikken.
 - `include/data_transmission.h` deklarerer målebufferens og payload-lagets API.
@@ -135,11 +146,13 @@ nrfutil device program \
 ```
 
 Åbn en seriel terminal efter flash. Ved en vellykket forbindelse vises
-`LTE registered ...` og `LTE mode: NB-IoT` i loggen. LED'en lyser grøn, når
-NB-IoT-forbindelsen er aktiv. Før registrering lyser LED'en blå; ved mistet
-forbindelse bliver den rød, mens modemmet forsøger at genoprette forbindelsen.
-Logger modemmet en uventet LTE-mode (fx LTE-M), er konfigurationen eller
-netværket ikke NB-IoT-kompatibelt.
+`LTE registered ...` og `LTE mode: NB-IoT` i loggen. LED'en blinker blå, mens
+der søges, lyser grøn ved LTE-registrering og skifter til cyan, når
+MQTT-forbindelsen er oppe. Ved mistet forbindelse bliver den rød, mens modemmet
+forsøger at genoprette forbindelsen. Fem korte hvide blink bekræfter en afsendt
+måling, og fem korte røde blink viser en afsendelsesfejl. Logger modemmet en
+uventet LTE-mode (fx LTE-M), er konfigurationen eller netværket ikke
+NB-IoT-kompatibelt.
 
 ## Test
 
