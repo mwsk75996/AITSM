@@ -64,8 +64,9 @@ npm run preview  # preview af build (PHP kører ikke her)
 ## GitHub Actions
 
 Workflowet kører ved push til `main`, når `cloud/visualization/**` er ændret.
-Det installerer Node, kører `npm ci`, `npm run lint` og `npm run build` og
-synkroniserer derefter `cloud/visualization/dist/` til VPS’en.
+Det installerer Node, kører `npm ci`, `npm run lint` og `npm run build`,
+synkroniserer `cloud/visualization/dist/` til VPS’en og opdaterer derefter
+Nginx-konfigurationen via det root-ejede wrapper-script.
 
 Det kræver disse GitHub Secrets:
 
@@ -76,10 +77,17 @@ Det kræver disse GitHub Secrets:
 - `VPS_SSH_KEY`
 - `VPS_KNOWN_HOSTS`
 
+### Nginx som kode
+
+Nginx-snippeten for visualizationen versionsstyres i `cloud/visualization/deploy/`
+og installeres ved hvert deploy til `/etc/nginx/snippets/aitsm-visualization.conf`.
 Deploy-brugeren skal kunne skrive til `/var/www/html/projekt-c/cloud/visualization/`
-og have en begrænset, passwordless sudoers-regel til de to Nginx-kommandoer.
-På VPS’en skal reglen tilpasses de faktiske binærstier, typisk:
+og have en passwordless sudoers-regel, der kun tillader det faste wrapper-script:
 
 ```text
-deploy-bruger ALL=(root) NOPASSWD: /usr/sbin/nginx -t, /usr/bin/systemctl reload nginx
+aitsm-deploy ALL=(root) NOPASSWD: /usr/local/bin/aitsm-deploy-nginx
 ```
+
+Se `cloud/visualization/deploy/README.md` for engangsopsætningen af serveren
+(wrapper-script, sudoers-regel og `include`-linjen i vhosten).
+

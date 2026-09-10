@@ -1,0 +1,4 @@
+# Deploy-brugerens rettigheder: kun det faste wrapper-script må køres som root.
+# Installeres til /etc/sudoers.d/aitsm-deploy (root:root, 0440).
+Cmnd_Alias AITSM_DEPLOY_NGINX = /usr/local/bin/aitsm-deploy-nginx
+aitsm-deploy ALL=(root) NOPASSWD: AITSM_DEPLOY_NGINX

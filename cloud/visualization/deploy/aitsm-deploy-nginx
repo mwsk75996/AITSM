@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+# Installerer den versionerede Nginx-snippet for Project C visualization og
+# reloader Nginx. Kør es kun via sudo af deploy-brugeren:
+#
+#   sudo -n /usr/local/bin/aitsm-deploy-nginx
+#
+# Scriptet er root-ejet og må ikke kunne ændres af deploy-brugeren.
+set -euo pipefail
+
+readonly SRC="/var/www/html/projekt-c/cloud/visualization/nginx-visualization.conf"
+readonly DEST="/etc/nginx/snippets/aitsm-visualization.conf"
+
+if [[ ! -r "$SRC" ]]; then
+  echo "Mangler konfigurationsfil: $SRC" >&2
+  exit 1
+fi
+
+install -m 0644 -o root -g root "$SRC" "$DEST"
+
+/usr/sbin/nginx -t
+/usr/bin/systemctl reload nginx
+
+echo "Nginx-konfiguration opdateret fra $SRC"
