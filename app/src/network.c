@@ -75,7 +75,7 @@ int network_init(void)
 
 	/* Register before connecting so the first network event is not missed. */
 	lte_lc_register_handler(lte_event_handler);
-	(void)led_status_set(LED_STATUS_CONNECTING);
+	(void)led_status_set(LED_STATUS_SEARCHING);
 
 	printk("Connecting to LTE network; this may take a few minutes\n");
 	err = lte_lc_connect_async(NULL);
