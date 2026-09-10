@@ -6,25 +6,41 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-$page = (int) ($_GET['page'] ?? 1);
 $pageSize = (int) ($_GET['page_size'] ?? $_GET['limit'] ?? 50);
-
-if ($page < 1) {
-    $page = 1;
-}
 
 $allowedPageSizes = [10, 25, 50, 100];
 if (!in_array($pageSize, $allowedPageSizes, true)) {
     $pageSize = 50;
 }
 
-$offset = ($page - 1) * $pageSize;
+// Keyset-paginering: eksklusiv øvre grænse for timestamp (ISO-8601).
+// Bruges i stedet for OFFSET, som ældre QuestDB-versioner ikke understøtter.
+$cursor = null;
+if (isset($_GET['cursor']) && $_GET['cursor'] !== '') {
+    $rawCursor = (string) $_GET['cursor'];
+
+    if (strlen($rawCursor) > 40 || !preg_match('/^[0-9T:\\-.+Z ]+$/', $rawCursor)) {
+        http_response_code(400);
+        echo json_encode(
+            [
+                'status' => 'error',
+                'message' => 'Ugyldig cursor.',
+            ],
+            JSON_THROW_ON_ERROR
+        );
+        exit;
+    }
+
+    $cursor = $rawCursor;
+}
 
 $countQuery = 'SELECT count(), avg(temperature), min(battery) FROM sensor_readings';
+
+// Hent én række ekstra for at afgøre, om der findes en næste side.
 $dataQuery = sprintf(
-    'SELECT timestamp, device_id, temperature, battery FROM sensor_readings ORDER BY timestamp DESC LIMIT %d OFFSET %d',
-    $pageSize,
-    $offset
+    "SELECT timestamp, device_id, temperature, battery FROM sensor_readings%s ORDER BY timestamp DESC LIMIT %d",
+    $cursor === null ? '' : " WHERE timestamp < '" . $cursor . "'",
+    $pageSize + 1
 );
 
 function questdbQuery(string $query): array
@@ -73,17 +89,6 @@ try {
     $aggregateRow = $countPayload['dataset'][0] ?? [0, null, null];
     $total = (int) ($aggregateRow[0] ?? 0);
 
-    $totalPages = $total > 0 ? (int) ceil($total / $pageSize) : 1;
-    if ($page > $totalPages) {
-        $page = $totalPages;
-        $offset = ($page - 1) * $pageSize;
-        $dataQuery = sprintf(
-            'SELECT timestamp, device_id, temperature, battery FROM sensor_readings ORDER BY timestamp DESC LIMIT %d OFFSET %d',
-            $pageSize,
-            $offset
-        );
-    }
-
     $payload = questdbQuery($dataQuery);
     $columnNames = array_map(
         static fn (array $column): string => $column['name'],
@@ -106,13 +111,21 @@ try {
         ];
     }
 
+    $hasMore = count($readings) > $pageSize;
+
+    if ($hasMore) {
+        $readings = array_slice($readings, 0, $pageSize);
+    }
+
+    $nextCursor = $hasMore ? ($readings[count($readings) - 1]['timestamp'] ?? null) : null;
+
     echo json_encode(
         [
             'status' => 'ok',
-            'page' => $page,
             'page_size' => $pageSize,
             'total' => $total,
-            'total_pages' => $totalPages,
+            'has_more' => $hasMore,
+            'next_cursor' => $nextCursor,
             'summary' => [
                 'avg_temperature' => $aggregateRow[1] ?? null,
                 'min_battery' => $aggregateRow[2] ?? null,
