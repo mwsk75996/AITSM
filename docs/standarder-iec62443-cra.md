@@ -19,9 +19,12 @@ cloud-broker'en over MQTT med TLS på port 8883
 sikkerhedslager før forbindelsen oprettes
 (`app/src/mqtt_credentials_provision.c`, `modem_key_mgmt_write(...)`), så
 enheden kan verificere broker'ens certifikat under TLS-håndtrykket.
-Forbindelsen autentificeres derudover med et device-specifikt klient-id samt
-brugernavn/password (`conn_params` i `mqtt_client.c`), hvilket dækker
-enhancement (1).
+Forbindelsen autentificeres derudover med brugernavn/password (`conn_params` i
+`mqtt_client.c`). Klient-id'et bruges som broker-identifikator, men er i den
+aktuelle implementation hardcoded til `thingy91x` og bør derfor ikke beskrives
+som en unik identitet eller stærk autentificeringsfaktor. Brugernavn/password
+er den relevante MQTT-autentificering her, hvilket dækker enhancement (1) i
+den nuværende løsning.
 
 **Afgrænsning:** Der er ikke implementeret klientcertifikater (mTLS) — kun
 server-autentificering via TLS plus MQTT-brugernavn/password. Det er
@@ -34,19 +37,23 @@ fremtidig forbedring.
 lagret data.
 
 **Hvordan løsningen adresserer det:** Samme TLS-forbindelse som ovenfor
-sikrer fortrolighed for data i transit mellem enhed og broker. Der lagres
-ingen følsomme data lokalt på enheden ud over MQTT-credentials, som ligger i
-en ikke-committed `mqtt_credentials.h` (se `#if __has_include(...)` i
-`mqtt_client.c`) og modemets sikkerhedslager.
+sikrer fortrolighed for data i transit mellem enhed og broker. MQTT-
+brugernavn/password leveres ved build-tid via en ikke-committed
+`mqtt_credentials.h` (se `#if __has_include(...)` i `mqtt_client.c`) og bliver
+dermed en del af firmware-binaryen. CA-certifikatet provisioneres separat til
+modemets sikkerhedslager. Løsningen beskytter derfor data i transit, mens
+beskyttelsen af credentials at rest ikke bør beskrives som secure-storage uden
+yderligere dokumentation.
 
 ### CR 3.7 – Error handling
 
 **Krav:** Fejltilstande skal identificeres og håndteres uden at afsløre
 information, som en modstander kan udnytte til at angribe systemet.
 
-**Hvordan løsningen adresserer det:** Fejl i MQTT-laget logges udelukkende
-som numeriske return codes/fejlkoder — ikke som beskrivende tekststrenge, der
-kunne afsløre systemdetaljer:
+**Hvordan løsningen adresserer det:** Fejl i MQTT-laget logges med korte,
+faste beskeder og numeriske return codes/fejlkoder. Logbeskederne indeholder
+ikke credentials eller detaljerede fejlårsager, der kan afsløre unødvendige
+systemdetaljer:
 
 ```c
 LOG_ERR("MQTT-forbindelse afvist, return code: %d", return_code);
@@ -91,28 +98,31 @@ ikke har bygget endnu.
 ### 1.c – Beskyttelse mod uautoriseret adgang
 
 Kræver passende kontrolmekanismer, herunder autentificering og identity
-management. Adresseres af den samme MQTT-autentificering som CR 3.1: unikt
-klient-id (`AITSM_MQTT_CLIENT_ID`) samt brugernavn/password valideret af
-broker'en, kombineret med TLS-forbindelsen der forhindrer aflytning af
-credentials under transport.
+management. Adresseres af den samme MQTT-autentificering som CR 3.1:
+brugernavn/password valideret af broker'en, kombineret med TLS-forbindelsen
+der forhindrer aflytning af credentials under transport.
+`AITSM_MQTT_CLIENT_ID` identificerer klienten over for broker'en, men er i den
+aktuelle implementation hardcoded til `thingy91x` og er derfor ikke en unik
+device-identitet.
 
 ### 1.d – Beskyttelse af fortrolighed
 
 Kræver kryptering af data i transit/at rest efter state-of-the-art metoder.
-Adresseres af TLS på MQTT-forbindelsen (samme grundlag som CR 4.1). Der
-opbevares ikke andre følsomme data lokalt på enheden, som kræver kryptering
-at rest.
+TLS på MQTT-forbindelsen adresserer data i transit (samme grundlag som CR
+4.1). MQTT-credentials leveres ved build-tid og bliver en del af
+firmware-binaryen; de bør derfor ikke beskrives som krypteret at rest uden
+yderligere dokumentation.
 
 ### 1.h – Minimér negativ indflydelse på andre enheders/netværks tilgængelighed
 
-Kræver at produktet ikke belaster andre enheder eller netværk unødigt (fx
-ved at bidrage til DoS). Delvist adresseret: publisering sker med QoS 1
-(`MQTT_QOS_1_AT_LEAST_ONCE` i `aitsm_mqtt_publish_payload()`), så enheden
-ikke spammer gentagne fulde forbindelsesforsøg for hver besked. Der er dog
-**ingen backoff-strategi implementeret endnu** ved gentagne forbindelsesfejl
-— hvis broker'en er nede, vil enheden potentielt forsøge at genoprette
-forbindelse uden stigende ventetid. Dette er et konkret forbedringspunkt,
-ikke noget der kan erklæres opfyldt i dag.
+Kravet handler bl.a. om at undgå unødig belastning af andre enheder eller
+netværk. Publisering sker med QoS 1
+(`MQTT_QOS_1_AT_LEAST_ONCE` i `aitsm_mqtt_publish_payload()`), men QoS
+regulerer leveringssemantikken og forhindrer ikke i sig selv gentagne
+forbindelsesforsøg. Der er **ingen backoff-strategi implementeret endnu** ved
+gentagne forbindelsesfejl — hvis broker'en er nede, vil enheden potentielt
+forsøge at genoprette forbindelse uden stigende ventetid. Punktet er derfor
+kun delvist adresseret og kan ikke erklæres opfyldt i dag.
 
 ### 1.j – Reducér konsekvenser af sikkerhedshændelser
 
@@ -137,12 +147,12 @@ generering.
 
 | Punkt | Status |
 |---|---|
-| CR 3.1 – Communication integrity | Opfyldt (TLS + klient-id/login) |
-| CR 4.1 – Information confidentiality | Opfyldt (samme TLS-kanal) |
+| CR 3.1 – Communication integrity | Opfyldt (TLS + MQTT-brugernavn/password) |
+| CR 4.1 – Information confidentiality | Delvist (TLS i transit; credentials at rest er ikke dokumenteret beskyttet) |
 | CR 3.7 – Error handling | Opfyldt (fejlkoder, ingen detaljelækage) |
 | CR 2.8 – Auditable events | Delvist (lokal logging, ikke persisteret) |
-| CRA 1.c | Opfyldt |
-| CRA 1.d | Opfyldt |
+| CRA 1.c | Opfyldt (MQTT-brugernavn/password; klient-id'et er ikke unikt) |
+| CRA 1.d | Delvist (TLS i transit; credentials at rest er ikke dokumenteret beskyttet) |
 | CRA 1.h | Delvist (mangler backoff-strategi) |
 | CRA 1.j | Delvist (mangler fail-safe/recovery) |
 | CRA 2.1 (SBOM) | Ikke opfyldt — fremtidigt arbejde |
