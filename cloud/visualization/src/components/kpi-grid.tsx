@@ -1,6 +1,3 @@
-import type { ComponentType } from 'react'
-import { Activity, Battery, Clock, Thermometer } from 'lucide-react'
-
 import {
   Card,
   CardContent,
@@ -9,7 +6,6 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { formatClock, formatValue, toNumber } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import type { ReadingsSummary } from '@/lib/types'
 
 type KpiGridProps = {
@@ -23,20 +19,13 @@ type KpiCardProps = {
   label: string
   value: string
   hint: string
-  accent: string
-  icon: ComponentType<{ className?: string }>
 }
 
-function KpiCard({ label, value, hint, accent, icon: Icon }: KpiCardProps) {
+function KpiCard({ label, value, hint }: KpiCardProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardDescription>{label}</CardDescription>
-          <span className={cn('flex size-8 items-center justify-center rounded-md', accent)}>
-            <Icon className="size-4" />
-          </span>
-        </div>
+        <CardDescription>{label}</CardDescription>
         <CardTitle className="text-3xl tabular-nums">{value}</CardTitle>
       </CardHeader>
       <CardContent>
@@ -68,29 +57,21 @@ export function KpiGrid({ total, summary, lastUpdated, loading }: KpiGridProps) 
         label="Målinger"
         value={hasData ? total.toLocaleString('da-DK') : '—'}
         hint={countHint}
-        accent="bg-sky-500/15 text-sky-600 dark:text-sky-400"
-        icon={Activity}
       />
       <KpiCard
         label="Gns. temperatur"
         value={formatValue(avgTemperature, '°C')}
         hint="På tværs af målinger"
-        accent="bg-amber-500/15 text-amber-600 dark:text-amber-400"
-        icon={Thermometer}
       />
       <KpiCard
         label="Laveste batteri"
         value={formatValue(minBattery, '%')}
         hint={batteryHint}
-        accent="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-        icon={Battery}
       />
       <KpiCard
         label="Senest opdateret"
         value={lastUpdated ? formatClock(lastUpdated) : '—'}
         hint="Hvert 30. sekund"
-        accent="bg-violet-500/15 text-violet-600 dark:text-violet-400"
-        icon={Clock}
       />
     </section>
   )

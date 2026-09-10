@@ -21,20 +21,16 @@ type ReadingsTableProps = {
 }
 
 type StateCellProps = {
-  emoji: string
   title: string
   text: string
   tone: 'empty' | 'error'
 }
 
-function StateCell({ emoji, title, text, tone }: StateCellProps) {
+function StateCell({ title, text, tone }: StateCellProps) {
   return (
     <TableRow>
       <TableCell colSpan={4} className="py-12">
         <div className="flex flex-col items-center gap-1 text-center">
-          <span className="text-3xl" aria-hidden="true">
-            {emoji}
-          </span>
           <span className={cn('font-medium', tone === 'error' && 'text-destructive')}>
             {title}
           </span>
@@ -65,7 +61,6 @@ export function ReadingsTable({ readings, status, loading }: ReadingsTableProps)
       <TableBody>
         {status === 'offline' && readings.length === 0 ? (
           <StateCell
-            emoji="💥"
             title="QuestDB-data er midlertidigt utilgængelige!"
             text="Vi prøver igen om lidt – siden opdaterer sig selv."
             tone="error"
@@ -89,7 +84,6 @@ export function ReadingsTable({ readings, status, loading }: ReadingsTableProps)
           ))
         ) : readings.length === 0 ? (
           <StateCell
-            emoji="👀"
             title="Ingen målinger fundet!"
             text="Der er endnu ikke registreret data fra nogen enhed."
             tone="empty"
