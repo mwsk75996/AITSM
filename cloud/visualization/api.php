@@ -6,13 +6,29 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-$query = <<<'SQL'
-SELECT timestamp, device_id, temperature, battery
-FROM sensor_readings
-ORDER BY timestamp DESC;
-SQL;
+$page = (int) ($_GET['page'] ?? 1);
+$pageSize = (int) ($_GET['page_size'] ?? $_GET['limit'] ?? 50);
 
-try {
+if ($page < 1) {
+    $page = 1;
+}
+
+$allowedPageSizes = [10, 25, 50, 100];
+if (!in_array($pageSize, $allowedPageSizes, true)) {
+    $pageSize = 50;
+}
+
+$offset = ($page - 1) * $pageSize;
+
+$countQuery = 'SELECT count(), avg(temperature), min(battery) FROM sensor_readings';
+$dataQuery = sprintf(
+    'SELECT timestamp, device_id, temperature, battery FROM sensor_readings ORDER BY timestamp DESC LIMIT %d OFFSET %d',
+    $pageSize,
+    $offset
+);
+
+function questdbQuery(string $query): array
+{
     $curl = curl_init('http://127.0.0.1:9000/exec?' . http_build_query(['query' => $query]));
 
     if ($curl === false) {
@@ -34,7 +50,26 @@ try {
         throw new RuntimeException($curlError ?: 'QuestDB returnerede ikke data.');
     }
 
-    $payload = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+    return json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+}
+
+try {
+    $countPayload = questdbQuery($countQuery);
+    $aggregateRow = $countPayload['dataset'][0] ?? [0, null, null];
+    $total = (int) ($aggregateRow[0] ?? 0);
+
+    $totalPages = $total > 0 ? (int) ceil($total / $pageSize) : 1;
+    if ($page > $totalPages) {
+        $page = $totalPages;
+        $offset = ($page - 1) * $pageSize;
+        $dataQuery = sprintf(
+            'SELECT timestamp, device_id, temperature, battery FROM sensor_readings ORDER BY timestamp DESC LIMIT %d OFFSET %d',
+            $pageSize,
+            $offset
+        );
+    }
+
+    $payload = questdbQuery($dataQuery);
     $columnNames = array_map(
         static fn (array $column): string => $column['name'],
         $payload['columns'] ?? []
@@ -59,6 +94,14 @@ try {
     echo json_encode(
         [
             'status' => 'ok',
+            'page' => $page,
+            'page_size' => $pageSize,
+            'total' => $total,
+            'total_pages' => $totalPages,
+            'summary' => [
+                'avg_temperature' => $aggregateRow[1] ?? null,
+                'min_battery' => $aggregateRow[2] ?? null,
+            ],
             'readings' => $readings,
         ],
         JSON_THROW_ON_ERROR
