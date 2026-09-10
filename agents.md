@@ -13,6 +13,7 @@
 - Alle pull requests (PRs), herunder titel, beskrivelse og kommentarer, skal skrives på dansk.
 - Issues, review-kommentarer og anden Git-relateret kommunikation skal skrives på dansk.
 - Kode, filnavne og tekniske identifikatorer må fortsat bruge engelsk, når det er den naturlige konvention.
+- AI-agenter må ikke tilføje sig selv som coauthor på commits, pull requests, issues eller anden Git-relateret kommunikation. Der må ikke bruges `Co-authored-by`-trailere eller lignende AI-attribution.
 
 ## Cloud og visualization
 
