@@ -18,6 +18,7 @@ type ReadingsTableProps = {
   readings: Reading[]
   status: ConnectionStatus
   loading: boolean
+  hasFilters: boolean
 }
 
 type StateCellProps = {
@@ -41,7 +42,12 @@ function StateCell({ title, text, tone }: StateCellProps) {
   )
 }
 
-export function ReadingsTable({ readings, status, loading }: ReadingsTableProps) {
+export function ReadingsTable({
+  readings,
+  status,
+  loading,
+  hasFilters,
+}: ReadingsTableProps) {
   const showSkeleton = loading && readings.length === 0 && status !== 'offline'
 
   return (
@@ -83,11 +89,19 @@ export function ReadingsTable({ readings, status, loading }: ReadingsTableProps)
             </TableRow>
           ))
         ) : readings.length === 0 ? (
-          <StateCell
-            title="Ingen målinger fundet!"
-            text="Der er endnu ikke registreret data fra nogen enhed."
-            tone="empty"
-          />
+          hasFilters ? (
+            <StateCell
+              title="Ingen målinger matcher filtrene"
+              text="Prøv at justere eller rydde filtrene."
+              tone="empty"
+            />
+          ) : (
+            <StateCell
+              title="Ingen målinger fundet!"
+              text="Der er endnu ikke registreret data fra nogen enhed."
+              tone="empty"
+            />
+          )
         ) : (
           readings.map((reading, index) => (
             <TableRow key={`${reading.device_id}-${reading.timestamp}-${index}`}>

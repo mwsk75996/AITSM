@@ -4,6 +4,7 @@ import { fetchReadings } from '@/lib/api'
 import type {
   ConnectionStatus,
   Reading,
+  ReadingsFilters,
   ReadingsSummary,
 } from '@/lib/types'
 
@@ -17,6 +18,7 @@ export type ReadingsState = {
   hasMore: boolean
   pageSize: number
   pageIndex: number
+  filters: ReadingsFilters
   status: ConnectionStatus
   loading: boolean
   lastUpdated: Date | null
@@ -29,6 +31,7 @@ const initialState: ReadingsState = {
   hasMore: false,
   pageSize: DEFAULT_PAGE_SIZE,
   pageIndex: 0,
+  filters: {},
   status: 'pending',
   loading: true,
   lastUpdated: null,
@@ -38,7 +41,11 @@ export function useReadings() {
   const [state, setState] = useState<ReadingsState>(initialState)
   // cursors[i] er cursoren der skal bruges for at hente side i. cursors[0] er altid null.
   const cursors = useRef<(string | null)[]>([null])
-  const current = useRef({ pageIndex: 0, pageSize: DEFAULT_PAGE_SIZE })
+  const current = useRef({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+    filters: {} as ReadingsFilters,
+  })
 
   const load = useCallback(
     async (requestedIndex: number, requestedPageSize?: number) => {
@@ -49,9 +56,17 @@ export function useReadings() {
       setState((previous) => ({ ...previous, loading: true }))
 
       try {
-        const data = await fetchReadings({ pageSize, cursor })
+        const data = await fetchReadings({
+          pageSize,
+          cursor,
+          filters: current.current.filters,
+        })
 
-        current.current = { pageIndex, pageSize: data.page_size }
+        current.current = {
+          pageIndex,
+          pageSize: data.page_size,
+          filters: current.current.filters,
+        }
 
         if (data.has_more && data.next_cursor) {
           cursors.current[pageIndex + 1] = data.next_cursor
@@ -66,6 +81,7 @@ export function useReadings() {
           hasMore: data.has_more === true,
           pageSize: data.page_size,
           pageIndex,
+          filters: current.current.filters,
           status: 'online',
           loading: false,
           lastUpdated: new Date(),
@@ -108,9 +124,24 @@ export function useReadings() {
     [load]
   )
 
+  const applyFilters = useCallback(
+    (filters: ReadingsFilters) => {
+      current.current.filters = filters
+      cursors.current = [null]
+      void load(0)
+    },
+    [load]
+  )
+
   const refresh = useCallback(() => {
     void load(current.current.pageIndex)
   }, [load])
 
-  return { ...state, goToPage, changePageSize, refresh }
+  return {
+    ...state,
+    goToPage,
+    changePageSize,
+    applyFilters,
+    refresh,
+  }
 }

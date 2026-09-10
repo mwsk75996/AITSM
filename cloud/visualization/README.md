@@ -9,16 +9,32 @@ med **shadcn/ui**-komponenter (Tailwind CSS). PHP-backenden ligger fortsat i
 - `index.html` – Vite-entrypoint
 - `src/` – React-kildekode
   - `App.tsx` – layout og sammensætning af siden
-  - `components/ui/` – shadcn-komponenter (button, card, badge, table, select, skeleton)
-  - `components/` – app-specifikke komponenter (header, KPI-kort, tabel, batteri, paginering)
-  - `hooks/use-readings.ts` – datahentning, keyset-paginering og auto-refresh
+  - `components/ui/` – shadcn-komponenter (button, card, badge, table, select, skeleton, input)
+  - `components/` – app-specifikke komponenter (header, filtre, KPI-kort, tabel, batteri, paginering)
+  - `hooks/use-readings.ts` – datahentning, filtre, keyset-paginering og auto-refresh
   - `lib/` – API-klient, formatering og typer
 - `public/api.php` – read-only endpoint mod QuestDB-tabellen `sensor_readings`
 - `vite.config.ts` – `base: './'` samt dev-proxy for `/api.php`
 
 API’et bruger felterne `device_id`, `timestamp`, `temperature` og `battery` og
 returnerer desuden `total`, `has_more`, `next_cursor` og `summary`. Siden henter
-den seneste historik med keyset-paginering og opdaterer automatisk hvert 30. sekund.
+historikken med keyset-paginering og opdaterer automatisk hvert 30. sekund.
+
+### Filtre
+
+Ud over `page_size` og `cursor` understøtter `api.php` disse valgfrie filtre.
+Uden filtre opfører endpointet sig som før (fuld historik, nyeste først).
+
+| Parameter | Betydning |
+| --- | --- |
+| `date` | Dag i UTC, `YYYY-MM-DD` (kan ikke kombineres med `from`/`to`) |
+| `from` / `to` | Tidsinterval, ISO-8601 (`from` inklusiv, `to` eksklusiv) |
+| `device_id` | Begræns til én enhed |
+| `temperature_min` / `temperature_max` | Nedre/øvre grænse for temperatur |
+| `battery_min` / `battery_max` | Nedre/øvre grænse for batteri |
+
+`total` og `summary` afspejler de valgte filtre. Ugyldige værdier afvises med
+HTTP 400 og en forklarende fejlbesked.
 
 ## Lokal udvikling
 
