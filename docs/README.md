@@ -10,6 +10,10 @@ Denne mappe indeholder projektdokumentation, kravspecifikationer og tekniske ref
 - `references/hardware/` – hardware- og produktdokumentation
 - `extracted/` – tekstudtræk, PDF-metadata og genererede preview-billeder fra referencerne
 
+## Redegørelser
+
+- [Standarder: IEC 62443-4-2 og CRA](standarder-iec62443-cra.md)
+
 ## Referencefiler
 
 - [UCL/Micro Technic-projektspecifikationer](references/requirements/ucl-mt-project-requirements-2026-08-26.pdf)
