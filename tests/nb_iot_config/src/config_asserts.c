@@ -26,3 +26,13 @@ BUILD_ASSERT(CONFIG_MQTT_HELPER_PORT == 8883,
 	     "MQTT helper must use the TLS port 8883");
 BUILD_ASSERT(CONFIG_MQTT_HELPER_SEC_TAG == 42,
 	     "MQTT helper must use security tag 42");
+
+/* Logging must use the Zephyr logging subsystem and be readable over USB
+ * (issue #10).
+ */
+BUILD_ASSERT(IS_ENABLED(CONFIG_LOG),
+	     "CONFIG_LOG must be enabled for firmware logging");
+BUILD_ASSERT(IS_ENABLED(CONFIG_LOG_BACKEND_UART),
+	     "The UART log backend must be enabled to read logs over USB");
+BUILD_ASSERT(CONFIG_AITSM_LOG_LEVEL >= 0 && CONFIG_AITSM_LOG_LEVEL <= 4,
+	     "CONFIG_AITSM_LOG_LEVEL must be within 0 (off) to 4 (debug)");

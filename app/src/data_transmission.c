@@ -8,7 +8,7 @@
 
 #include <data_transmission.h>
 
-LOG_MODULE_REGISTER(data_transmission, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(data_transmission, CONFIG_AITSM_LOG_LEVEL);
 
 #if defined(CONFIG_AITSM_TRANSMISSION_BATCH)
 #define AITSM_MAX_MEASUREMENTS CONFIG_AITSM_BATCH_MAX_SAMPLES

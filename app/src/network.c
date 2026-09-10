@@ -1,4 +1,4 @@
-#include <zephyr/sys/printk.h>
+#include <zephyr/logging/log.h>
 
 #include <modem/lte_lc.h>
 #include <modem/nrf_modem_lib.h>
@@ -8,26 +8,28 @@
 #include <mqtt_client.h>
 #include <network.h>
 
+LOG_MODULE_REGISTER(network, CONFIG_AITSM_LOG_LEVEL);
+
 static void lte_event_handler(const struct lte_lc_evt *const event)
 {
 	switch (event->type) {
 	case LTE_LC_EVT_NW_REG_STATUS:
 		switch (event->nw_reg_status) {
 		case LTE_LC_NW_REG_REGISTERED_HOME:
-			printk("LTE registered on home network (NB-IoT)\n");
+			LOG_INF("LTE registered on home network (NB-IoT)");
 			(void)aitsm_app_post_event(AITSM_APP_EVENT_LTE_CONNECTED, 0);
 			break;
 		case LTE_LC_NW_REG_REGISTERED_ROAMING:
-			printk("LTE registered while roaming (NB-IoT)\n");
+			LOG_INF("LTE registered while roaming (NB-IoT)");
 			(void)aitsm_app_post_event(AITSM_APP_EVENT_LTE_CONNECTED, 0);
 			break;
 		case LTE_LC_NW_REG_SEARCHING:
-			printk("Searching for LTE network\n");
+			LOG_INF("Searching for LTE network");
 			(void)aitsm_app_post_event(AITSM_APP_EVENT_LTE_SEARCHING, 0);
 			break;
 		default:
-			printk("LTE not registered, status: %d\n",
-			       event->nw_reg_status);
+			LOG_WRN("LTE not registered, status: %d",
+				event->nw_reg_status);
 			(void)aitsm_app_post_event(AITSM_APP_EVENT_LTE_DISCONNECTED,
 					   event->nw_reg_status);
 			break;
@@ -39,14 +41,14 @@ static void lte_event_handler(const struct lte_lc_evt *const event)
 		 */
 		switch (event->lte_mode) {
 		case LTE_LC_LTE_MODE_NBIOT:
-			printk("LTE mode: NB-IoT\n");
+			LOG_DBG("LTE mode: NB-IoT");
 			break;
 		case LTE_LC_LTE_MODE_NONE:
-			printk("LTE mode: none\n");
+			LOG_DBG("LTE mode: none");
 			break;
 		default:
-			printk("Warning: unexpected LTE mode %d; "
-			       "NB-IoT only is configured\n", event->lte_mode);
+			LOG_WRN("Unexpected LTE mode %d; NB-IoT only is configured",
+				event->lte_mode);
 			break;
 		}
 		break;
@@ -59,10 +61,10 @@ int network_init(void)
 {
 	int err;
 
-	printk("Initializing nRF modem\n");
+	LOG_INF("Initializing nRF modem");
 	err = nrf_modem_lib_init();
 	if (err != 0) {
-		printk("Modem initialization failed, error: %d\n", err);
+		LOG_ERR("Modem initialization failed, error: %d", err);
 		(void)led_status_set(LED_STATUS_ERROR);
 		return err;
 	}
@@ -77,10 +79,10 @@ int network_init(void)
 	lte_lc_register_handler(lte_event_handler);
 	(void)led_status_set(LED_STATUS_SEARCHING);
 
-	printk("Connecting to LTE network; this may take a few minutes\n");
+	LOG_INF("Connecting to LTE network; this may take a few minutes");
 	err = lte_lc_connect_async(NULL);
 	if (err != 0) {
-		printk("LTE connection start failed, error: %d\n", err);
+		LOG_ERR("LTE connection start failed, error: %d", err);
 		(void)led_status_set(LED_STATUS_ERROR);
 		return err;
 	}

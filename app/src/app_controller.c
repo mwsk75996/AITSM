@@ -6,7 +6,7 @@
 #include <measurement_service.h>
 #include <mqtt_client.h>
 
-LOG_MODULE_REGISTER(app_controller, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(app_controller, CONFIG_AITSM_LOG_LEVEL);
 
 #define AITSM_APP_EVENT_QUEUE_LENGTH 16
 

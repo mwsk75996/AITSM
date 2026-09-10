@@ -18,7 +18,7 @@
 #define AITSM_MQTT_PASSWORD ""
 #endif
 
-LOG_MODULE_REGISTER(mqtt_client, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(mqtt_client, CONFIG_AITSM_LOG_LEVEL);
 
 #define AITSM_MQTT_HOSTNAME "aitsm.vps.webdock.cloud"
 #define AITSM_MQTT_CLIENT_ID "thingy91x"

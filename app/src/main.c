@@ -1,30 +1,36 @@
 #include <zephyr/kernel.h>
-#include <zephyr/sys/printk.h>
+#include <zephyr/logging/log.h>
 
 #include <data_transmission.h>
 #include <led_status.h>
 #include <measurement_service.h>
 #include <network.h>
 
+LOG_MODULE_REGISTER(main, CONFIG_AITSM_LOG_LEVEL);
+
 int main(void)
 {
 	int err;
 
+	LOG_INF("AITSM firmware starting");
+
 	err = led_status_init();
 	if (err != 0) {
-		printk("RGB LED initialization failed, error: %d\n", err);
+		LOG_ERR("RGB LED initialization failed, error: %d", err);
 		return err;
 	}
 
 	err = aitsm_data_transmission_init();
 	if (err != 0) {
-		printk("Data transmission initialization failed, error: %d\n", err);
+		LOG_ERR("Data transmission initialization failed, error: %d",
+			err);
 		return err;
 	}
 
 	err = aitsm_measurement_service_init();
 	if (err != 0) {
-		printk("Measurement service initialization failed, error: %d\n", err);
+		LOG_ERR("Measurement service initialization failed, error: %d",
+			err);
 		return err;
 	}
 

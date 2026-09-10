@@ -53,4 +53,17 @@ config AITSM_TRANSMISSION_PAYLOAD_SIZE
 
 endmenu
 
+menu "AITSM logging"
+
+config AITSM_LOG_LEVEL
+	int "AITSM firmware log level"
+	range 0 4
+	default 3
+	help
+		Default log level for the AITSM modules: 0 = off, 1 = error,
+		2 = warning, 3 = info, 4 = debug. Use 4 locally to see
+		verbose debug output, for example LTE mode updates.
+
+endmenu
+
 source "Kconfig.zephyr"
