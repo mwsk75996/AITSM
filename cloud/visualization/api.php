@@ -36,13 +36,13 @@ function questdbQuery(string $query): array
     }
 
     curl_setopt_array($curl, [
-        CURLOPT_FAILONERROR => true,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 2,
         CURLOPT_TIMEOUT => 5,
     ]);
 
     $response = curl_exec($curl);
+    $httpCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
     $curlError = curl_error($curl);
     curl_close($curl);
 
@@ -50,7 +50,22 @@ function questdbQuery(string $query): array
         throw new RuntimeException($curlError ?: 'QuestDB returnerede ikke data.');
     }
 
-    return json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+    $decoded = json_decode($response, true);
+
+    if (!is_array($decoded)) {
+        throw new RuntimeException("QuestDB svarede HTTP {$httpCode} med et ugyldigt svar.");
+    }
+
+    if (isset($decoded['error'])) {
+        error_log('QuestDB-fejl: ' . $decoded['error']);
+        throw new RuntimeException('QuestDB afviste forespørgslen: ' . $decoded['error']);
+    }
+
+    if ($httpCode >= 400) {
+        throw new RuntimeException("QuestDB svarede HTTP {$httpCode}.");
+    }
+
+    return $decoded;
 }
 
 try {
@@ -113,6 +128,7 @@ try {
         [
             'status' => 'error',
             'message' => 'Kunne ikke hente sensordata fra QuestDB.',
+            'detail' => $error->getMessage(),
         ],
         JSON_THROW_ON_ERROR
     );
