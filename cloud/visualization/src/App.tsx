@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 
 import { AppHeader } from '@/components/app-header'
+import { FilterBar } from '@/components/filter-bar'
 import { KpiGrid } from '@/components/kpi-grid'
 import { Pagination } from '@/components/pagination'
 import { ReadingsTable } from '@/components/readings-table'
@@ -18,14 +19,17 @@ function App() {
     hasMore,
     pageSize,
     pageIndex,
+    filters,
     status,
     loading,
     lastUpdated,
     goToPage,
     changePageSize,
+    applyFilters,
   } = useReadings()
 
   const eyebrow = useMemo(() => pickRandomEyebrowMessage(), [])
+  const hasFilters = Object.values(filters).some((value) => value !== undefined)
 
   return (
     <div className="min-h-dvh bg-background">
@@ -57,6 +61,10 @@ function App() {
           loading={loading}
         />
 
+        <section className="mt-6" aria-label="Filtre">
+          <FilterBar filters={filters} loading={loading} onApply={applyFilters} />
+        </section>
+
         <section className="mt-10" aria-labelledby="readings-title">
           <div className="mb-4">
             <h2 id="readings-title" className="text-xl font-semibold">
@@ -68,7 +76,12 @@ function App() {
           </div>
 
           <div className="rounded-xl border bg-card p-2 shadow-sm">
-            <ReadingsTable readings={readings} status={status} loading={loading} />
+            <ReadingsTable
+              readings={readings}
+              status={status}
+              loading={loading}
+              hasFilters={hasFilters}
+            />
           </div>
 
           <div className="mt-4">

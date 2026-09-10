@@ -10,6 +10,15 @@ export type ReadingsSummary = {
   min_battery: number | null
 }
 
+export type ReadingsFilters = {
+  date?: string
+  deviceId?: string
+  temperatureMin?: number
+  temperatureMax?: number
+  batteryMin?: number
+  batteryMax?: number
+}
+
 export type ReadingsResponse = {
   status: 'ok'
   page_size: number
