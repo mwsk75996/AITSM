@@ -42,10 +42,13 @@ const pageButtons = document.querySelector('#page-buttons');
 const pageSizeSelect = document.querySelector('#page-size');
 
 const state = {
-    page: 1,
     pageSize: Number(pageSizeSelect?.value) || 50,
     total: 0,
-    totalPages: 1,
+    // Keyset-paginering: cursors[0] er altid null (første side).
+    cursors: [null],
+    pageIndex: 0,
+    nextCursor: null,
+    hasMore: false,
 };
 
 function showRandomEyebrowMessage() {
@@ -220,26 +223,14 @@ function renderSummary(summary) {
     }
 }
 
-/* Paginering */
-
-function pageList(current, total) {
-    if (total <= 7) {
-        return Array.from({ length: total }, (_, index) => index + 1);
-    }
-
-    const pages = new Set([1, 2, current - 1, current, current + 1, total - 1, total]);
-
-    return [...pages]
-        .filter((page) => page >= 1 && page <= total)
-        .sort((a, b) => a - b);
-}
+/* Paginering (keyset: Forrige/Næste via cursor, ingen OFFSET) */
 
 function renderPagination() {
     if (!pageButtons || !paginationInfo) {
         return;
     }
 
-    const { page, pageSize, total, totalPages } = state;
+    const { pageIndex, pageSize, total, hasMore } = state;
 
     pageButtons.innerHTML = '';
 
@@ -247,52 +238,26 @@ function renderPagination() {
     prevButton.type = 'button';
     prevButton.className = 'page-btn';
     prevButton.textContent = '‹ Forrige';
-    prevButton.disabled = page <= 1;
+    prevButton.disabled = pageIndex <= 0;
     prevButton.setAttribute('aria-label', 'Forrige side');
-    prevButton.addEventListener('click', () => loadReadings(page - 1));
+    prevButton.addEventListener('click', () => loadReadings(pageIndex - 1));
     pageButtons.appendChild(prevButton);
-
-    let previous = 0;
-    pageList(page, totalPages).forEach((pageNumber) => {
-        if (pageNumber - previous > 1) {
-            const ellipsis = document.createElement('span');
-            ellipsis.className = 'page-ellipsis';
-            ellipsis.textContent = '…';
-            ellipsis.setAttribute('aria-hidden', 'true');
-            pageButtons.appendChild(ellipsis);
-        }
-
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'page-btn';
-        button.textContent = String(pageNumber);
-        button.setAttribute('aria-label', `Side ${pageNumber}`);
-
-        if (pageNumber === page) {
-            button.setAttribute('aria-current', 'page');
-        } else {
-            button.addEventListener('click', () => loadReadings(pageNumber));
-        }
-
-        pageButtons.appendChild(button);
-        previous = pageNumber;
-    });
 
     const nextButton = document.createElement('button');
     nextButton.type = 'button';
     nextButton.className = 'page-btn';
     nextButton.textContent = 'Næste ›';
-    nextButton.disabled = page >= totalPages;
+    nextButton.disabled = !hasMore;
     nextButton.setAttribute('aria-label', 'Næste side');
-    nextButton.addEventListener('click', () => loadReadings(page + 1));
+    nextButton.addEventListener('click', () => loadReadings(pageIndex + 1));
     pageButtons.appendChild(nextButton);
 
     if (total === 0) {
         paginationInfo.textContent = 'Ingen målinger';
     } else {
-        const from = (page - 1) * pageSize + 1;
-        const to = Math.min(page * pageSize, total);
-        paginationInfo.textContent = `Viser ${from.toLocaleString('da-DK')}–${to.toLocaleString('da-DK')} af ${total.toLocaleString('da-DK')} · Side ${page} af ${totalPages}`;
+        const from = pageIndex * pageSize + 1;
+        const to = Math.min((pageIndex + 1) * pageSize, total);
+        paginationInfo.textContent = `Viser ${from.toLocaleString('da-DK')}–${to.toLocaleString('da-DK')} af ${total.toLocaleString('da-DK')}`;
     }
 }
 
@@ -310,13 +275,20 @@ function renderReadings(readings, summary) {
 
 /* Datahentning */
 
-async function loadReadings(requestedPage = state.page) {
+async function loadReadings(requestedIndex = state.pageIndex) {
     setBusy(true);
 
-    const page = Math.max(1, Math.min(requestedPage, state.totalPages));
+    const pageIndex = Math.max(0, requestedIndex);
+    const cursor = state.cursors[pageIndex] ?? null;
 
     try {
-        const response = await fetch(`api.php?page=${page}&page_size=${state.pageSize}`, {
+        const params = new URLSearchParams({ page_size: String(state.pageSize) });
+
+        if (cursor !== null) {
+            params.set('cursor', cursor);
+        }
+
+        const response = await fetch(`api.php?${params.toString()}`, {
             cache: 'no-store',
             headers: { Accept: 'application/json' },
         });
@@ -328,13 +300,20 @@ async function loadReadings(requestedPage = state.page) {
         const data = await response.json();
 
         if (data.status !== 'ok' || !Array.isArray(data.readings)) {
-            throw new Error('Ugyldigt API-svar');
+            throw new Error(data.detail || 'Ugyldigt API-svar');
         }
 
-        state.page = Number(data.page) || page;
+        state.pageIndex = pageIndex;
         state.pageSize = Number(data.page_size) || state.pageSize;
         state.total = Number(data.total) || 0;
-        state.totalPages = Math.max(1, Number(data.total_pages) || 1);
+        state.hasMore = data.has_more === true;
+        state.nextCursor = typeof data.next_cursor === 'string' ? data.next_cursor : null;
+
+        if (state.hasMore) {
+            state.cursors[pageIndex + 1] = state.nextCursor;
+        } else {
+            state.cursors.length = pageIndex + 1;
+        }
 
         if (pageSizeSelect && pageSizeSelect.value !== String(state.pageSize)) {
             pageSizeSelect.value = String(state.pageSize);
@@ -374,12 +353,14 @@ async function loadReadings(requestedPage = state.page) {
 
 pageSizeSelect?.addEventListener('change', () => {
     state.pageSize = Number(pageSizeSelect.value) || 50;
-    state.page = 1;
-    state.totalPages = 1;
-    loadReadings(1);
+    state.cursors = [null];
+    state.pageIndex = 0;
+    state.nextCursor = null;
+    state.hasMore = false;
+    loadReadings(0);
 });
 
 showRandomEyebrowMessage();
 renderSkeleton();
-loadReadings(1);
+loadReadings(0);
 setInterval(() => loadReadings(), REFRESH_INTERVAL_MS);
