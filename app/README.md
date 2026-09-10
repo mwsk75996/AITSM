@@ -117,8 +117,9 @@ mulig detalje lokalt:
 CONFIG_AITSM_LOG_LEVEL=4
 ```
 
-LTE- og MQTT-hændelser samt fejl logges på info/warning/error, mens detaljer som
-LTE-mode og hver lagret måling kun vises på debug-niveau.
+LTE- og MQTT-hændelser samt fejl logges på info/warning/error, og hver
+indsamlede måling logges på info med temperatur og batteri. Debug-niveauet
+tilføjer blandt andet LTE-modeopdateringer.
 
 ## Build
 

@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <zephyr/device.h>
@@ -42,6 +43,18 @@ static uint16_t battery_percent_from_voltage(int64_t voltage_mv)
 
 	return (uint16_t)(((voltage_mv - BATTERY_EMPTY_MV) * 10000) /
 			  (BATTERY_FULL_MV - BATTERY_EMPTY_MV));
+}
+
+/* Log hver indsamlet måling på info-niveau, så den kan følges lokalt. */
+static void log_measurement(const struct aitsm_measurement *measurement)
+{
+	int temperature = measurement->temperature_centi_celsius;
+	int battery = measurement->battery_centi_percent;
+
+	LOG_INF("Måling indsamlet: temperatur %s%d.%02d C, batteri %s%d.%02d %%",
+		temperature < 0 ? "-" : "", abs(temperature) / 100,
+		abs(temperature) % 100,
+		battery < 0 ? "-" : "", abs(battery) / 100, abs(battery) % 100);
 }
 
 static int read_measurement(struct aitsm_measurement *measurement)
@@ -162,9 +175,7 @@ static void measurement_work_handler(struct k_work *work)
 		return;
 	}
 
-	LOG_DBG("Måling tilføjet: temp %d, batteri %d",
-		measurement.temperature_centi_celsius,
-		measurement.battery_centi_percent);
+	log_measurement(&measurement);
 
 	now = measurement.timestamp;
 	if (aitsm_data_transmission_should_flush(now)) {
