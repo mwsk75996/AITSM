@@ -37,6 +37,16 @@ const minBatteryHint = document.querySelector('#min-battery-hint');
 const lastUpdated = document.querySelector('#last-updated');
 const readingsTable = document.querySelector('#readings-table');
 const readingsBody = document.querySelector('#readings-body');
+const paginationInfo = document.querySelector('#pagination-info');
+const pageButtons = document.querySelector('#page-buttons');
+const pageSizeSelect = document.querySelector('#page-size');
+
+const state = {
+    page: 1,
+    pageSize: Number(pageSizeSelect?.value) || 50,
+    total: 0,
+    totalPages: 1,
+};
 
 function showRandomEyebrowMessage() {
     const message = EYEBROW_MESSAGES[Math.floor(Math.random() * EYEBROW_MESSAGES.length)];
@@ -185,36 +195,110 @@ function renderSkeleton() {
     `).join('');
 }
 
-/* Nøgletal */
+/* Nøgletal (globale aggregater fra serveren, så de dækker hele historikken) */
 
-function renderSummary(readings) {
-    readingCount.textContent = readings.length.toLocaleString('da-DK');
-    readingCountHint.textContent = readings.length === 1
+function renderSummary(summary) {
+    const total = state.total;
+
+    readingCount.textContent = total.toLocaleString('da-DK');
+    readingCountHint.textContent = total === 1
         ? 'måling i historikken'
         : 'målinger i historikken';
 
-    const temperatures = readings.map((reading) => toNumber(reading.temperature)).filter((value) => value !== null);
-    const batteries = readings.map((reading) => toNumber(reading.battery)).filter((value) => value !== null);
+    const avgTemperatureValue = toNumber(summary?.avg_temperature);
+    avgTemperature.textContent = avgTemperatureValue === null
+        ? '—'
+        : formatValue(avgTemperatureValue, '°C');
 
-    if (temperatures.length === 0) {
-        avgTemperature.textContent = '—';
-    } else {
-        const average = temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length;
-        avgTemperature.textContent = formatValue(average, '°C');
-    }
-
-    if (batteries.length === 0) {
+    const minBatteryValue = toNumber(summary?.min_battery);
+    if (minBatteryValue === null) {
         minBattery.textContent = '—';
         minBatteryHint.textContent = 'Ingen batteridata';
     } else {
-        const lowest = Math.min(...batteries);
-        minBattery.textContent = formatValue(lowest, '%');
-        minBatteryHint.textContent = lowest <= 30 ? 'Enhed bør oplades' : 'Alle enheder har strøm nok';
+        minBattery.textContent = formatValue(minBatteryValue, '%');
+        minBatteryHint.textContent = minBatteryValue <= 30 ? 'Enhed bør oplades' : 'Alle enheder har strøm nok';
     }
 }
 
-function renderReadings(readings) {
-    renderSummary(readings);
+/* Paginering */
+
+function pageList(current, total) {
+    if (total <= 7) {
+        return Array.from({ length: total }, (_, index) => index + 1);
+    }
+
+    const pages = new Set([1, 2, current - 1, current, current + 1, total - 1, total]);
+
+    return [...pages]
+        .filter((page) => page >= 1 && page <= total)
+        .sort((a, b) => a - b);
+}
+
+function renderPagination() {
+    if (!pageButtons || !paginationInfo) {
+        return;
+    }
+
+    const { page, pageSize, total, totalPages } = state;
+
+    pageButtons.innerHTML = '';
+
+    const prevButton = document.createElement('button');
+    prevButton.type = 'button';
+    prevButton.className = 'page-btn';
+    prevButton.textContent = '‹ Forrige';
+    prevButton.disabled = page <= 1;
+    prevButton.setAttribute('aria-label', 'Forrige side');
+    prevButton.addEventListener('click', () => loadReadings(page - 1));
+    pageButtons.appendChild(prevButton);
+
+    let previous = 0;
+    pageList(page, totalPages).forEach((pageNumber) => {
+        if (pageNumber - previous > 1) {
+            const ellipsis = document.createElement('span');
+            ellipsis.className = 'page-ellipsis';
+            ellipsis.textContent = '…';
+            ellipsis.setAttribute('aria-hidden', 'true');
+            pageButtons.appendChild(ellipsis);
+        }
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'page-btn';
+        button.textContent = String(pageNumber);
+        button.setAttribute('aria-label', `Side ${pageNumber}`);
+
+        if (pageNumber === page) {
+            button.setAttribute('aria-current', 'page');
+        } else {
+            button.addEventListener('click', () => loadReadings(pageNumber));
+        }
+
+        pageButtons.appendChild(button);
+        previous = pageNumber;
+    });
+
+    const nextButton = document.createElement('button');
+    nextButton.type = 'button';
+    nextButton.className = 'page-btn';
+    nextButton.textContent = 'Næste ›';
+    nextButton.disabled = page >= totalPages;
+    nextButton.setAttribute('aria-label', 'Næste side');
+    nextButton.addEventListener('click', () => loadReadings(page + 1));
+    pageButtons.appendChild(nextButton);
+
+    if (total === 0) {
+        paginationInfo.textContent = 'Ingen målinger';
+    } else {
+        const from = (page - 1) * pageSize + 1;
+        const to = Math.min(page * pageSize, total);
+        paginationInfo.textContent = `Viser ${from.toLocaleString('da-DK')}–${to.toLocaleString('da-DK')} af ${total.toLocaleString('da-DK')} · Side ${page} af ${totalPages}`;
+    }
+}
+
+function renderReadings(readings, summary) {
+    renderSummary(summary);
+    renderPagination();
 
     if (readings.length === 0) {
         renderState('👀', 'Ingen målinger fundet!', 'Der er endnu ikke registreret data fra nogen enhed.', 'empty');
@@ -226,11 +310,13 @@ function renderReadings(readings) {
 
 /* Datahentning */
 
-async function loadReadings() {
+async function loadReadings(requestedPage = state.page) {
     setBusy(true);
 
+    const page = Math.max(1, Math.min(requestedPage, state.totalPages));
+
     try {
-        const response = await fetch('api.php', {
+        const response = await fetch(`api.php?page=${page}&page_size=${state.pageSize}`, {
             cache: 'no-store',
             headers: { Accept: 'application/json' },
         });
@@ -245,7 +331,16 @@ async function loadReadings() {
             throw new Error('Ugyldigt API-svar');
         }
 
-        renderReadings(data.readings);
+        state.page = Number(data.page) || page;
+        state.pageSize = Number(data.page_size) || state.pageSize;
+        state.total = Number(data.total) || 0;
+        state.totalPages = Math.max(1, Number(data.total_pages) || 1);
+
+        if (pageSizeSelect && pageSizeSelect.value !== String(state.pageSize)) {
+            pageSizeSelect.value = String(state.pageSize);
+        }
+
+        renderReadings(data.readings, data.summary);
 
         const time = new Intl.DateTimeFormat('da-DK', {
             hour: '2-digit',
@@ -261,6 +356,9 @@ async function loadReadings() {
         avgTemperature.textContent = '—';
         minBattery.textContent = '—';
         minBatteryHint.textContent = 'Ingen batteridata';
+        if (paginationInfo) {
+            paginationInfo.textContent = '—';
+        }
         renderState(
             '💥',
             'QuestDB-data er midlertidigt utilgængelige!',
@@ -274,7 +372,14 @@ async function loadReadings() {
     }
 }
 
+pageSizeSelect?.addEventListener('change', () => {
+    state.pageSize = Number(pageSizeSelect.value) || 50;
+    state.page = 1;
+    state.totalPages = 1;
+    loadReadings(1);
+});
+
 showRandomEyebrowMessage();
 renderSkeleton();
-loadReadings();
-setInterval(loadReadings, REFRESH_INTERVAL_MS);
+loadReadings(1);
+setInterval(() => loadReadings(), REFRESH_INTERVAL_MS);

@@ -86,6 +86,22 @@
                     <tbody role="rowgroup" id="readings-body"></tbody>
                 </table>
             </div>
+
+            <nav class="pagination" id="pagination" aria-label="Målingshistorik sider">
+                <p class="pagination-info" id="pagination-info" aria-live="polite">—</p>
+                <div class="pagination-controls">
+                    <div class="page-buttons" id="page-buttons"></div>
+                    <label class="page-size">
+                        Pr. side
+                        <select id="page-size">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </label>
+                </div>
+            </nav>
         </section>
     </main>
 
