@@ -2,3 +2,7 @@
 /project_context/.vps-credentials.env
 /build/
 /twister-out/
+
+# Python
+__pycache__/
+*.pyc
