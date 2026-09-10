@@ -87,7 +87,7 @@ jobs:
             -e "ssh $SSH_OPTIONS" \
             cloud/visualization/dist/ "$VPS_USER@$VPS_HOST:$REMOTE_PATH/"
 
-      - name: Validér og reload Nginx
+      - name: Opdater Nginx-konfiguration
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
@@ -96,13 +96,47 @@ jobs:
           set -eu
           REMOTE_PATH="${REMOTE_PATH%/}"
           SSH_OPTIONS="-i $HOME/.ssh/deploy_key -p ${VPS_PORT:-22} -o BatchMode=yes"
-          ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" \
-            "set -eu; php -l '$REMOTE_PATH/api.php'; sudo -n /usr/sbin/nginx -t; sudo -n /usr/bin/systemctl reload nginx"
+
+          # Læg den versionsstyrede snippet i deploy-mappen ...
+          rsync --compress \
+            -e "ssh $SSH_OPTIONS" \
+            cloud/visualization/deploy/nginx-visualization.conf \
+            "$VPS_USER@$VPS_HOST:$REMOTE_PATH/nginx-visualization.conf"
+
+          # ... og lad det root-ejede wrapper-script installere den og reload Nginx.
+          ssh $SSH_OPTIONS "$VPS_USER@$VPS_HOST" "sudo -n /usr/local/bin/aitsm-deploy-nginx"
 
       - name: Test live website
         run: |
-          for path in / /api.php /favicon.svg; do
+          set -eu
+          base="${LIVE_URL%/}"
+
+          # 1) Forsiden skal være bygget HTML med React-root.
+          html="$(curl --fail --silent --show-error --location \
+            --retry 3 --retry-delay 5 --max-time 20 "$base/")"
+          printf '%s' "$html" | grep -q 'id="root"' \
+            || { echo "Forsiden indeholder ikke React-root" >&2; exit 1; }
+
+          # 2) Alle assets, som forsiden refererer, skal kunne hentes.
+          assets="$(printf '%s' "$html" | grep -oE '\./assets/[^"]+' | sort -u)"
+          test -n "$assets" || { echo "Fandt ingen assets i index.html" >&2; exit 1; }
+          for asset in $assets; do
+            echo "Tjekker ${asset#./}"
             curl --fail --silent --show-error --location \
               --retry 3 --retry-delay 5 --max-time 20 \
-              "${LIVE_URL%/}${path}" > /dev/null
+              "$base/${asset#./}" > /dev/null
           done
+
+          # 3) Favicon og forsiden.
+          curl --fail --silent --show-error --location \
+            --retry 3 --retry-delay 5 --max-time 20 \
+            "$base/favicon.svg" > /dev/null
+
+          # 4) API'et er ikke-fatalt: QuestDB kan være midlertidigt nede,
+          #    og siden håndterer det selv.
+          api_code="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --max-time 20 "$base/api.php?page_size=1" || true)"
+          echo "api.php -> HTTP ${api_code:-000}"
+          if [ "${api_code:-000}" != "200" ]; then
+            echo "::warning::api.php svarede HTTP ${api_code:-000} (ikke-fatalt)"
+          fi
