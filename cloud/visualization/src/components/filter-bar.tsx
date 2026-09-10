@@ -65,7 +65,7 @@ export function FilterBar({ filters, loading, onApply }: FilterBarProps) {
     <Card>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="text-muted-foreground">Dato</span>
               <Input
@@ -85,53 +85,53 @@ export function FilterBar({ filters, loading, onApply }: FilterBarProps) {
               />
             </label>
 
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-muted-foreground">Temperatur min (°C)</span>
-              <Input
-                type="number"
-                inputMode="decimal"
-                step="0.1"
-                placeholder="Ingen nedre grænse"
-                value={temperatureMin}
-                onChange={(event) => setTemperatureMin(event.target.value)}
-              />
-            </label>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm text-muted-foreground">Temperatur (°C)</span>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  placeholder="min"
+                  aria-label="Temperatur min (°C)"
+                  value={temperatureMin}
+                  onChange={(event) => setTemperatureMin(event.target.value)}
+                />
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  placeholder="max"
+                  aria-label="Temperatur max (°C)"
+                  value={temperatureMax}
+                  onChange={(event) => setTemperatureMax(event.target.value)}
+                />
+              </div>
+            </div>
 
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-muted-foreground">Temperatur max (°C)</span>
-              <Input
-                type="number"
-                inputMode="decimal"
-                step="0.1"
-                placeholder="Ingen øvre grænse"
-                value={temperatureMax}
-                onChange={(event) => setTemperatureMax(event.target.value)}
-              />
-            </label>
-
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-muted-foreground">Batteri min (%)</span>
-              <Input
-                type="number"
-                inputMode="decimal"
-                step="0.1"
-                placeholder="Ingen nedre grænse"
-                value={batteryMin}
-                onChange={(event) => setBatteryMin(event.target.value)}
-              />
-            </label>
-
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-muted-foreground">Batteri max (%)</span>
-              <Input
-                type="number"
-                inputMode="decimal"
-                step="0.1"
-                placeholder="Ingen øvre grænse"
-                value={batteryMax}
-                onChange={(event) => setBatteryMax(event.target.value)}
-              />
-            </label>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm text-muted-foreground">Batteri (%)</span>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  placeholder="min"
+                  aria-label="Batteri min (%)"
+                  value={batteryMin}
+                  onChange={(event) => setBatteryMin(event.target.value)}
+                />
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  placeholder="max"
+                  aria-label="Batteri max (%)"
+                  value={batteryMax}
+                  onChange={(event) => setBatteryMax(event.target.value)}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
