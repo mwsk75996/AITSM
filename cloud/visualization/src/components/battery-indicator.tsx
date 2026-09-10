@@ -19,7 +19,10 @@ export function BatteryIndicator({ value, className }: BatteryIndicatorProps) {
 
   return (
     <span
-      className={cn('inline-flex items-center gap-2', className)}
+      className={cn(
+        'inline-grid w-[6.5rem] grid-cols-[2rem_4rem] items-center gap-2',
+        className,
+      )}
       role="img"
       aria-label={`Batteri ${label}`}
     >
@@ -29,7 +32,7 @@ export function BatteryIndicator({ value, className }: BatteryIndicatorProps) {
           style={{ width: `${clampPercentage(value)}%` }}
         />
       </span>
-      <span className="text-sm tabular-nums text-muted-foreground">{label}</span>
+      <span className="text-right text-sm tabular-nums text-muted-foreground">{label}</span>
     </span>
   )
 }
