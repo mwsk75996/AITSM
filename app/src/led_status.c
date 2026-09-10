@@ -31,8 +31,14 @@ static const struct pwm_dt_spec blue_led = PWM_DT_SPEC_GET(BLUE_LED_NODE);
 /** Half period for a blinking status, in milliseconds. */
 #define LED_STATUS_BLINK_PERIOD_MS 250
 
-/** How long a transient publish indication is shown, in milliseconds. */
-#define LED_STATUS_TRANSIENT_MS 300
+/** Number of short blinks for a transient publish indication. */
+#define LED_STATUS_TRANSIENT_BLINKS 5
+
+/** On-time for each transient publish blink, in milliseconds. */
+#define LED_STATUS_TRANSIENT_ON_MS 150
+
+/** Off-time between transient publish blinks, in milliseconds. */
+#define LED_STATUS_TRANSIENT_OFF_MS 150
 
 static struct k_mutex led_mutex;
 static struct k_work_delayable blink_work;
@@ -41,6 +47,8 @@ static struct k_work_delayable transient_work;
 static enum led_status stable_status = LED_STATUS_DISCONNECTED;
 static enum led_status displayed_status = LED_STATUS_DISCONNECTED;
 static bool blink_visible;
+static bool transient_on;
+static uint8_t transient_blinks_left;
 
 static void blink_work_handler(struct k_work *work);
 static void transient_work_handler(struct k_work *work);
@@ -165,16 +173,9 @@ static void blink_work_handler(struct k_work *work)
 	k_mutex_unlock(&led_mutex);
 }
 
-static void transient_work_handler(struct k_work *work)
+/* Return to the last stable status and resume blinking if it requires it. */
+static void restore_stable(void)
 {
-	ARG_UNUSED(work);
-
-	if (k_mutex_lock(&led_mutex, K_NO_WAIT) != 0) {
-		(void)k_work_reschedule(&transient_work,
-					K_MSEC(LED_STATUS_BLINK_PERIOD_MS));
-		return;
-	}
-
 	displayed_status = stable_status;
 	blink_visible =
 		led_status_indication(displayed_status).pattern ==
@@ -184,6 +185,35 @@ static void transient_work_handler(struct k_work *work)
 	if (blink_visible) {
 		(void)k_work_reschedule(&blink_work,
 					K_MSEC(LED_STATUS_BLINK_PERIOD_MS));
+	}
+}
+
+static void transient_work_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	if (k_mutex_lock(&led_mutex, K_NO_WAIT) != 0) {
+		(void)k_work_reschedule(&transient_work,
+					K_MSEC(LED_STATUS_TRANSIENT_ON_MS));
+		return;
+	}
+
+	if (transient_on) {
+		/* Turn off between two blinks. */
+		transient_on = false;
+		(void)set_color(0, 0, 0);
+		(void)k_work_reschedule(&transient_work,
+					K_MSEC(LED_STATUS_TRANSIENT_OFF_MS));
+	} else if (transient_blinks_left > 1) {
+		transient_blinks_left--;
+		transient_on = true;
+		(void)apply_status(displayed_status, true);
+		(void)k_work_reschedule(&transient_work,
+					K_MSEC(LED_STATUS_TRANSIENT_ON_MS));
+	} else {
+		transient_blinks_left = 0;
+		transient_on = false;
+		restore_stable();
 	}
 
 	k_mutex_unlock(&led_mutex);
@@ -202,6 +232,8 @@ int led_status_init(void)
 	k_work_init_delayable(&blink_work, blink_work_handler);
 	k_work_init_delayable(&transient_work, transient_work_handler);
 	blink_visible = false;
+	transient_on = false;
+	transient_blinks_left = 0;
 	stable_status = LED_STATUS_DISCONNECTED;
 	displayed_status = LED_STATUS_DISCONNECTED;
 
@@ -231,15 +263,17 @@ int led_status_set(enum led_status status)
 	}
 
 	if (led_status_is_transient(status)) {
-		/* Flash without changing the stable connection status. */
+		/* Blink a few times without changing the stable status. */
 		displayed_status = status;
 		blink_visible = false;
+		transient_on = true;
+		transient_blinks_left = LED_STATUS_TRANSIENT_BLINKS;
 		(void)k_work_cancel_delayable(&blink_work);
 		ret = apply_status(status, true);
 
 		if (ret == 0) {
 			(void)k_work_reschedule(&transient_work,
-						K_MSEC(LED_STATUS_TRANSIENT_MS));
+						K_MSEC(LED_STATUS_TRANSIENT_ON_MS));
 		}
 	} else {
 		stable_status = status;

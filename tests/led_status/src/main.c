@@ -58,16 +58,20 @@ ZTEST(led_status, test_transient_returns_to_stable)
 	zassert_equal(led_status_displayed(), LED_STATUS_PUBLISH_OK, NULL);
 	zassert_equal(led_status_stable(), LED_STATUS_LTE_CONNECTED, NULL);
 
-	k_sleep(K_MSEC(2 * 300 + 200));
+	/* Fem blink: stadig transient længe efter et enkelt blink ville være slut. */
+	k_sleep(K_MSEC(600));
+	zassert_equal(led_status_displayed(), LED_STATUS_PUBLISH_OK, NULL);
+
+	k_sleep(K_MSEC(2000));
 	zassert_equal(led_status_displayed(), LED_STATUS_LTE_CONNECTED, NULL);
 
-	/* Same for a failure flash after MQTT has connected. */
+	/* Same for a failure blink after MQTT has connected. */
 	zassert_ok(led_status_set(LED_STATUS_MQTT_CONNECTED), NULL);
 	zassert_ok(led_status_set(LED_STATUS_PUBLISH_ERROR), NULL);
 	zassert_equal(led_status_displayed(), LED_STATUS_PUBLISH_ERROR, NULL);
 	zassert_equal(led_status_stable(), LED_STATUS_MQTT_CONNECTED, NULL);
 
-	k_sleep(K_MSEC(2 * 300 + 200));
+	k_sleep(K_MSEC(2600));
 	zassert_equal(led_status_displayed(), LED_STATUS_MQTT_CONNECTED, NULL);
 }
 

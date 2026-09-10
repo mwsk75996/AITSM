@@ -16,12 +16,12 @@ RGB-LED'en viser forbindelses- og afsendelsesstatus:
 | LTE forbundet | Grøn, fast |
 | Cloud MQTT forbundet | Cyan, fast |
 | Ikke forbundet / generel fejl | Rød, fast |
-| Måling sendt korrekt | Kort hvidt blink |
-| Fejl ved afsendelse | Kort rødt blink |
+| Måling sendt korrekt | 5 korte hvide blink |
+| Fejl ved afsendelse | 5 korte røde blink |
 
-Et midlertidigt succes- eller fejlblink (hvidt/rødt) vises kort og vender
-derefter automatisk tilbage til den seneste stabile status —fx cyan, hvis MQTT
-stadig er forbundet. Al farvevalg og blinklogik ligger centralt i
+Et midlertidigt succes- eller fejlblink (fem korte hvide/røde blink) vises og
+vender derefter automatisk tilbage til den seneste stabile status —fx cyan, hvis
+MQTT stadig er forbundet. Al farvevalg og blinklogik ligger centralt i
 `src/led_status.c`, så netværks- og MQTT-laget kun angiver en status gennem
 `led_status_set()`.
 
@@ -149,8 +149,8 @@ nrfutil device program \
 `LTE registered ...` og `LTE mode: NB-IoT` i loggen. LED'en blinker blå, mens
 der søges, lyser grøn ved LTE-registrering og skifter til cyan, når
 MQTT-forbindelsen er oppe. Ved mistet forbindelse bliver den rød, mens modemmet
-forsøger at genoprette forbindelsen. Et kort hvidt blink bekræfter en afsendt
-måling, og et kort rødt blink viser en afsendelsesfejl. Logger modemmet en
+forsøger at genoprette forbindelsen. Fem korte hvide blink bekræfter en afsendt
+måling, og fem korte røde blink viser en afsendelsesfejl. Logger modemmet en
 uventet LTE-mode (fx LTE-M), er konfigurationen eller netværket ikke
 NB-IoT-kompatibelt.
 
