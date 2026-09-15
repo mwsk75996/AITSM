@@ -18,7 +18,7 @@ export function AppHeader({ status, theme, onToggleTheme }: AppHeaderProps) {
           </span>
           <span className="flex flex-col leading-none">
             <span className="font-semibold tracking-tight">AITSM</span>
-            <span className="text-xs text-muted-foreground">Engineering</span>
+            <span className="text-xs text-muted-foreground">Engineering ApS</span>
           </span>
         </a>
 
