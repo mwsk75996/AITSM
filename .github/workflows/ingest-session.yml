@@ -42,7 +42,7 @@ jobs:
       - name: Start isoleret testbroker
         run: |
           docker run -d --name aitsm-session-broker -p 1883:1883 \
-            -v "$GITHUB_WORKSPACE/cloud/mqtt/tests/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+            -v "$GITHUB_WORKSPACE/cloud/mqtt/tests/mosquitto:/mosquitto/config:ro" \
             eclipse-mosquitto@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
       - name: Installér testafhængigheder
         run: python -m pip install -r cloud/mqtt/requirements-dev.txt
@@ -53,11 +53,13 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Test leveringer under stoppet ingest
+      - name: Test leveringer under stoppet ingest og QuestDB-skrivefejl
         env:
           QUESTDB_INTEGRATION_URL: http://127.0.0.1:9000
           MQTT_INTEGRATION_HOST: 127.0.0.1
-        run: python -m pytest cloud/mqtt/tests/test_ingest.py cloud/mqtt/tests/test_mqtt_session_integration.py
+        run: |
+          python -m pytest cloud/mqtt/tests/test_ingest.py cloud/mqtt/tests/test_mqtt_session_integration.py \
+            cloud/mqtt/tests/test_questdb_outage_integration.py
       - name: Fjern testbroker
         if: always()
         run: docker rm -f aitsm-session-broker

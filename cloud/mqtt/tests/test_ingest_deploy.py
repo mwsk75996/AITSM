@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+import subprocess
+import sys
 import pytest
 import deploy_ingest as deploy
 import verify_ingest_outage as outage
@@ -34,6 +36,31 @@ def test_failed_subscription_rolls_back_and_restarts_original(tmp_path, monkeypa
         deploy.deploy()
     assert target.read_text() == "# original\n"
     assert commands.count(["systemctl", "restart", deploy.SERVICE]) == 2
+
+
+def test_paho_check_accepts_installed_paho_with_manual_ack():
+    result = subprocess.run([sys.executable, "-c", deploy.PAHO_CHECK],
+                            capture_output=True, text=True, check=True)
+    assert "understøtter manuel ACK" in result.stdout
+
+
+def test_paho_without_manual_ack_stops_deploy_before_replacement(tmp_path, monkeypatch):
+    target = tmp_path / "old" / "ingest.py"
+    target.parent.mkdir()
+    target.write_text("# original\n")
+    source = tmp_path / "ingest.py"
+    source.write_text("# replacement\n")
+    monkeypatch.setattr(deploy, "service_command", lambda: ("python", target))
+    commands = []
+    def run(command, **kwargs):
+        commands.append(command)
+        if command[1:] == ["-c", deploy.PAHO_CHECK]:
+            raise subprocess.CalledProcessError(1, command)
+    monkeypatch.setattr(deploy.subprocess, "run", run)
+    with pytest.raises(subprocess.CalledProcessError):
+        deploy.deploy(source)
+    assert target.read_text() == "# original\n"
+    assert commands == [["python", "-c", deploy.PAHO_CHECK]]
 
 
 def test_identical_script_does_not_restart_service(tmp_path, monkeypatch):
@@ -113,3 +140,14 @@ def test_termination_signal_runs_restore_cleanup(monkeypatch):
             outage.signal.getsignal(outage.signal.SIGTERM)(outage.signal.SIGTERM, None)
     assert commands[-2:] == [["systemctl", "start", outage.SERVICE],
                              ["systemctl", "stop", outage.RESTORE_UNIT + ".timer"]]
+
+
+def test_broker_limits_reject_per_listener_settings(tmp_path, capsys):
+    (tmp_path / "conf.d").mkdir()
+    (tmp_path / "mosquitto.conf").write_text("persistence true\npassword_file /etc/mosquitto/passwd\n")
+    (tmp_path / "conf.d" / "aitsm.conf").write_text("per_listener_settings false\n")
+    outage.broker_limits(tmp_path)
+    assert capsys.readouterr().out == "Mosquitto persistence=true\nMosquitto per_listener_settings=false\n"
+    (tmp_path / "conf.d" / "aitsm.conf").write_text("per_listener_settings true\n")
+    with pytest.raises(RuntimeError, match="per_listener_settings"):
+        outage.broker_limits(tmp_path)

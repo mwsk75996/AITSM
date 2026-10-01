@@ -26,7 +26,7 @@ def test_real_ingest_replays_and_key_identity(monkeypatch):
     def send(device, readings):
         message = SimpleNamespace(topic="aitsm/"+device+"/telemetry", payload=json.dumps(
             {"device_id": device, "readings": readings}).encode())
-        ingest.on_message(None, None, message)
+        ingest.store_message(message)
     send("thingy91x", rows)
     send("thingy91x", rows)
     send("other-device", [rows[0]])

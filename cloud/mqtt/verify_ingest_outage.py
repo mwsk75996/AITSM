@@ -43,14 +43,19 @@ def seconds(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
 
-def broker_limits():
+def broker_limits(config_dir=Path("/etc/mosquitto")):
     # Inspect only retention directives; never log credentials, ACLs or keys.
-    allowed = {"persistence", "max_queued_messages", "max_queued_bytes", "persistent_client_expiration", "autosave_interval"}
-    for path in [Path("/etc/mosquitto/mosquitto.conf"), *sorted(Path("/etc/mosquitto/conf.d").glob("*.conf"))]:
+    allowed = {"persistence", "max_queued_messages", "max_queued_bytes", "persistent_client_expiration",
+               "autosave_interval", "per_listener_settings"}
+    for path in [config_dir / "mosquitto.conf", *sorted((config_dir / "conf.d").glob("*.conf"))]:
         for line in path.read_text().splitlines():
             parts = line.split()
             if parts and parts[0] in allowed:
                 print(f"Mosquitto {parts[0]}={' '.join(parts[1:])}", flush=True)
+                if parts[0] == "per_listener_settings" and parts[1:] == ["true"]:
+                    # Mosquitto 2.0 denies the ACL check for offline clients
+                    # in this mode, so the outage batch would be dropped.
+                    raise RuntimeError("per_listener_settings true: Mosquitto køer ikke til offline ingest")
 
 
 def verify():
