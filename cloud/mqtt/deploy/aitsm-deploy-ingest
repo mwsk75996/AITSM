@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Root-owned entrypoint. Only the ingest file and its fixed service are managed.
+set -euo pipefail
+if [[ "$#" -lt 1 || "$#" -gt 2 ]]; then exit 2; fi
+stage="$1"
+[[ "$stage" =~ ^/tmp/aitsm-ingest\.[a-zA-Z0-9]{6}$ ]] || exit 2
+[[ -d "$stage" && ! -L "$stage" && -f "$stage/ingest.py" && ! -L "$stage/ingest.py" ]] || exit 2
+option="${2:-}"
+[[ -z "$option" || "$option" == --verify-outage ]] || exit 2
+args=(--source "$stage/ingest.py")
+if [[ -n "$option" ]]; then args+=("$option"); fi
+exec /usr/bin/python3 /usr/local/lib/aitsm-ingest/deploy_ingest.py "${args[@]}"

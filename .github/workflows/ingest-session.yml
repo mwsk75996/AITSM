@@ -101,4 +101,4 @@ jobs:
           verify_arg=""
           if [ "$VERIFY_OUTAGE" = true ]; then verify_arg="--verify-outage"; fi
           ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" \
-            "if [ '$INSPECT_ONLY' = true ]; then python3 $remote_dir/deploy_ingest.py --inspect; elif [ \$(id -u) = 0 ]; then python3 $remote_dir/deploy_ingest.py $verify_arg; else sudo -n python3 $remote_dir/deploy_ingest.py $verify_arg; fi"
+            "if [ '$INSPECT_ONLY' = true ]; then python3 $remote_dir/deploy_ingest.py --inspect; else sudo -n /usr/local/bin/aitsm-deploy-ingest $remote_dir $verify_arg; fi"
