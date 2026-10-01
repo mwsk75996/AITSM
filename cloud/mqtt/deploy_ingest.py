@@ -46,14 +46,14 @@ def wait_for_subscription(since):
     raise RuntimeError("Ingest etablerede ikke sit abonnement efter deploy")
 
 
-def deploy():
+def deploy(source=None):
     interpreter, target = service_command()
     # Check the service's existing interpreter and Paho installation; no
     # environment files or credentials need to be read or replaced.
     subprocess.run([interpreter, "-c", "from paho.mqtt.packettypes import PacketTypes; "
                     "from paho.mqtt.properties import Properties; "
                     "p=Properties(PacketTypes.CONNECT); p.SessionExpiryInterval=86400"], check=True)
-    content = Path(__file__).with_name("ingest.py").read_bytes()
+    content = (source or Path(__file__).with_name("ingest.py")).read_bytes()
     compile(content, str(target), "exec")
     previous = target.read_bytes()
     if content == previous:
@@ -73,11 +73,22 @@ def deploy():
     print("Ingest opdateret og QoS 1-abonnement etableret; miljø og øvrige services uændrede", flush=True)
 
 
+def inspect():
+    _, target = service_command()
+    print(f"Ingest-script: {target}; parent writable={os.access(target.parent, os.W_OK)}", flush=True)
+    subprocess.run(["sudo", "-n", "-l"], check=False)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--verify-outage", action="store_true")
+    parser.add_argument("--inspect", action="store_true", help="Read deployment permissions without changing files or services")
+    parser.add_argument("--source", type=Path, help="Reviewed ingest script staged by the deploy workflow")
     args = parser.parse_args()
-    deploy()
+    if args.inspect:
+        inspect()
+        raise SystemExit(0)
+    deploy(args.source)
     if args.verify_outage:
         from verify_ingest_outage import verify
         verify()

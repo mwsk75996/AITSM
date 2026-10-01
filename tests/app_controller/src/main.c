@@ -9,7 +9,9 @@ K_SEM_DEFINE(probe_done, 0, 1);
 K_SEM_DEFINE(connect_called, 0, 16);
 static int connect_calls, disconnect_calls, starts, stops;
 static int connect_result;
-static bool lte;
+static bool lte, accept_completion;
+static uint32_t completed_token;
+static int completed_result;
 static enum led_status led;
 
 int aitsm_mqtt_connect(void)
@@ -24,7 +26,8 @@ int aitsm_mqtt_disconnect(void) { disconnect_calls++; return 0; }
 void aitsm_mqtt_set_lte_available(bool available) { lte = available; }
 void aitsm_measurement_service_mqtt_connected(void) { starts++; }
 void aitsm_measurement_service_mqtt_disconnected(void) { stops++; }
-void aitsm_measurement_service_publish_result(int result) { ARG_UNUSED(result); }
+bool aitsm_measurement_service_publish_result(uint32_t token, int result)
+{ completed_token = token; completed_result = result; return accept_completion; }
 int led_status_set(enum led_status status) { led = status; return 0; }
 
 static void probe_handler(struct k_work *work)
@@ -49,6 +52,7 @@ static void before(void *fixture)
 	post(AITSM_APP_EVENT_LTE_DISCONNECTED);
 	aitsm_app_controller_init();
 	connect_calls = disconnect_calls = starts = stops = connect_result = 0;
+	accept_completion = true; completed_token = 0;
 	k_sem_reset(&connect_called);
 }
 ZTEST_SUITE(app_controller, NULL, NULL, before, NULL, NULL);
@@ -125,4 +129,21 @@ ZTEST(app_controller, test_connect_submission_failure_retries)
 	connect_result = 0;
 	zassert_ok(k_sem_take(&connect_called, K_MSEC(1500)), NULL);
 	zassert_equal(connect_calls, 2, NULL);
+}
+
+
+ZTEST(app_controller, test_completion_token_forwarded_and_stale_result_leaves_led_unchanged)
+{
+	post(AITSM_APP_EVENT_LTE_CONNECTED);
+	post(AITSM_APP_EVENT_MQTT_CONNECTED);
+	zassert_true(aitsm_app_post_publish_result(73, 0) >= 0, NULL);
+	flush();
+	zassert_equal(completed_token, 73, NULL);
+	zassert_equal(completed_result, 0, NULL);
+	zassert_equal(led, LED_STATUS_PUBLISH_OK, NULL);
+	accept_completion = false;
+	zassert_true(aitsm_app_post_publish_result(72, -EIO) >= 0, NULL);
+	flush();
+	zassert_equal(completed_token, 72, NULL);
+	zassert_equal(led, LED_STATUS_PUBLISH_OK, "Stale completion changed LED");
 }

@@ -9,6 +9,10 @@ on:
     paths: [cloud/mqtt/ingest.py, cloud/mqtt/deploy_ingest.py, cloud/mqtt/verify_ingest_outage.py, .github/workflows/ingest-session.yml]
   workflow_dispatch:
     inputs:
+      inspect_only:
+        description: 'Læs deploy-rettigheder uden ændring af filer eller services'
+        type: boolean
+        default: false
       verify_outage:
         description: 'Stop ingest i seks minutter og kontrollér Thingy-målingerne bagefter'
         type: boolean
@@ -61,7 +65,7 @@ jobs:
   deploy:
     name: Deploy ingest og valgfri udfaldstest
     needs: integration
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || inputs.inspect_only)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -83,6 +87,7 @@ jobs:
           VPS_PORT: ${{ secrets.VPS_PORT }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VERIFY_OUTAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_outage }}
+          INSPECT_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.inspect_only }}
         run: |
           set -euo pipefail
           test -n "$VPS_HOST"
@@ -96,4 +101,4 @@ jobs:
           verify_arg=""
           if [ "$VERIFY_OUTAGE" = true ]; then verify_arg="--verify-outage"; fi
           ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" \
-            "if [ \$(id -u) = 0 ]; then python3 $remote_dir/deploy_ingest.py $verify_arg; else sudo -n python3 $remote_dir/deploy_ingest.py $verify_arg; fi"
+            "if [ '$INSPECT_ONLY' = true ]; then python3 $remote_dir/deploy_ingest.py --inspect; else sudo -n /usr/local/bin/aitsm-deploy-ingest $remote_dir $verify_arg; fi"

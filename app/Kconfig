@@ -79,6 +79,22 @@ config AITSM_MQTT_RECONNECT_MAX_DELAY_SECONDS
 	range 1 3600
 	default 60
 
+config AITSM_MQTT_PUBACK_TIMEOUT_SECONDS
+	int "Initial wait for broker PUBACK"
+	range 1 3600
+	default 30
+	help
+		Only a missing PUBACK triggers retransmission of the same MQTT 3.1.1
+		payload and message identifier, without creating a new TLS connection.
+
+config AITSM_MQTT_PUBACK_MAX_DELAY_SECONDS
+	int "Maximum delay between missing-PUBACK retries"
+	range 1 3600
+	default 300
+	help
+		Double the wait after each retransmission up to this bound. ACK and
+		disconnect cancel the timer; new samples never change its deadline.
+
 endmenu
 
 menu "AITSM logging"

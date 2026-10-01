@@ -59,6 +59,7 @@ static void lte_lost(void)
 struct aitsm_app_event {
 	enum aitsm_app_event_type type;
 	int value;
+	uint32_t publish_token;
 };
 
 K_MSGQ_DEFINE(aitsm_app_event_queue,
@@ -116,7 +117,9 @@ static void handle_event(const struct aitsm_app_event *event)
 		apply_reconnect(AITSM_RECONNECT_FAILURE);
 		break;
 	case AITSM_APP_EVENT_MQTT_PUBLISH_RESULT:
-		aitsm_measurement_service_publish_result(event->value);
+		if (!aitsm_measurement_service_publish_result(event->publish_token, event->value)) {
+			break;
+		}
 		if (event->value == 0) {
 			LOG_INF("Cloud MQTT publish-event modtaget: succes");
 			(void)led_status_set(LED_STATUS_PUBLISH_OK);
@@ -148,11 +151,12 @@ static void app_event_work_handler(struct k_work *work)
 
 K_WORK_DEFINE(aitsma_app_event_work, app_event_work_handler);
 
-int aitsm_app_post_event(enum aitsm_app_event_type type, int value)
+static int post_event(enum aitsm_app_event_type type, int value, uint32_t token)
 {
 	const struct aitsm_app_event event = {
 		.type = type,
 		.value = value,
+		.publish_token = token,
 	};
 	int err = k_msgq_put(&aitsm_app_event_queue, &event, K_NO_WAIT);
 	if (err != 0) {
@@ -161,4 +165,14 @@ int aitsm_app_post_event(enum aitsm_app_event_type type, int value)
 	}
 
 	return k_work_submit(&aitsma_app_event_work);
+}
+
+int aitsm_app_post_event(enum aitsm_app_event_type type, int value)
+{
+	return post_event(type, value, 0);
+}
+
+int aitsm_app_post_publish_result(uint32_t token, int result)
+{
+	return post_event(AITSM_APP_EVENT_MQTT_PUBLISH_RESULT, result, token);
 }

@@ -1,14 +1,42 @@
 #!/usr/bin/env python3
 """Repeat testcase 4 using existing device data; always restart stopped ingest."""
 from datetime import datetime, timezone
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import subprocess
+import signal
 import time
 
 import questdb_schema as schema
 
 SERVICE = "projekt-c-ingest"
+RESTORE_UNIT = "aitsm-ingest-test-restore"
+
+
+@contextmanager
+def restore_ingest():
+    # A transient timer survives a killed SSH/process and limits disruption
+    # even when Python cannot execute finally (SIGKILL or runner cancellation).
+    subprocess.run(["systemd-run", "--quiet", "--collect", f"--unit={RESTORE_UNIT}",
+                    "--on-active=420s", "--timer-property=AccuracySec=1s",
+                    "/usr/bin/systemctl", "start", SERVICE], check=True)
+    previous = {}
+    def interrupted(signum, frame):
+        raise InterruptedError("Udfaldstest afbrudt; genstarter ingest")
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        previous[sig] = signal.signal(sig, interrupted)
+    try:
+        yield
+    finally:
+        try:
+            subprocess.run(["systemctl", "start", SERVICE], check=True)
+            # Cancel only after a successful start. Failed restart must leave
+            # the independent safety timer armed.
+            subprocess.run(["systemctl", "stop", RESTORE_UNIT + ".timer"], check=True)
+        finally:
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
 
 
 def seconds(value):
@@ -36,15 +64,13 @@ def verify():
            f"AND timestamp > '{last}' ORDER BY timestamp")
     stopped = time.time()
     print(f"Stopper ingest i 360 s; seneste måling {last}", flush=True)
-    try:
+    with restore_ingest():
         subprocess.run(["systemctl", "stop", SERVICE], check=True)
         for elapsed in range(0, 360, 30):
             time.sleep(30)
             print(f"Ingest stoppet: {elapsed + 30}/360 s", flush=True)
         if schema.query(sql):
             raise RuntimeError("Nye Thingy-rækker kom frem, mens ingest var stoppet")
-    finally:
-        subprocess.run(["systemctl", "start", SERVICE], check=True)
     resumed = time.time()
     for _ in range(120):
         rows = schema.query(sql)
