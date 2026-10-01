@@ -48,6 +48,9 @@ static int publish_buffer(void)
 	int err = aitsm_data_transmission_format(measurement_payload,
 					       sizeof(measurement_payload), &formatted_count);
 	if (err != 0) {
+		if (err != -ENODATA) {
+			LOG_ERR("Kunne ikke formatere målepayload: %d", err);
+		}
 		return err;
 	}
 	err = aitsm_mqtt_publish_payload(measurement_payload, strlen(measurement_payload));
