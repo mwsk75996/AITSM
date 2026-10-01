@@ -16,6 +16,7 @@ static char measurement_payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE];
  * its own cadence; MQTT availability only controls transmission.
  */
 static size_t pending_measurement_count;
+static uint32_t pending_publish_token;
 static bool publish_in_flight;
 static bool mqtt_connected;
 static uint32_t dropped_samples;
@@ -53,7 +54,8 @@ static int publish_buffer(void)
 		}
 		return err;
 	}
-	err = aitsm_mqtt_publish_payload(measurement_payload, strlen(measurement_payload));
+	err = aitsm_mqtt_publish_payload(measurement_payload, strlen(measurement_payload),
+					&pending_publish_token);
 	if (err != 0) {
 		LOG_WRN("Kunne ikke sende målepayload: %d", err);
 		return err;
@@ -130,6 +132,7 @@ int aitsm_measurement_service_init(void)
 	(void)k_work_cancel_delayable(&measurement_work);
 	(void)k_work_cancel_delayable(&publish_work);
 	pending_measurement_count = 0;
+	pending_publish_token = 0;
 	publish_in_flight = false;
 	mqtt_connected = false;
 	dropped_samples = drops_since_log = 0;
@@ -162,10 +165,10 @@ void aitsm_measurement_service_mqtt_disconnected(void)
 	/* Sampling continues; no retained or in-flight measurements are removed. */
 }
 
-void aitsm_measurement_service_publish_result(int result)
+bool aitsm_measurement_service_publish_result(uint32_t token, int result)
 {
-	if (!publish_in_flight) {
-		return;
+	if (!publish_in_flight || token != pending_publish_token) {
+		return false;
 	}
 	publish_in_flight = false;
 	if (result == 0) {
@@ -182,4 +185,5 @@ void aitsm_measurement_service_publish_result(int result)
 		LOG_WRN("Målepayload blev ikke bekræftet: %d; data bevares", result);
 		request_publish(K_SECONDS(CONFIG_AITSM_MEASUREMENT_INTERVAL_SECONDS));
 	}
+	return true;
 }

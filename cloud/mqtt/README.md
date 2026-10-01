@@ -96,7 +96,7 @@ normal broker-genstart; strømsvigt kan stadig miste data siden seneste disksave
 Det tilføjer kun sessionegenskaber ved ingest-connect. Enheden sender samme
 payload og batches som før. Dubletter ved genlevering håndteres af #78.
 Enhedens PUBACK er fortsat brokerens kvittering, og ingest kvitterer automatisk
-efter callback: fejlet HTTP-skrivning til QuestDB er en særskilt risiko, som
+efter callback: fejlet HTTP-skrivning til QuestDB er en særskilt risiko (#88), som
 sessionen alene ikke afhjælper.
 
 Se [Pahos connect-API](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html)
@@ -110,11 +110,14 @@ og QuestDB 10.0.1. To batches med 40 målinger og en gentagelse publiceres,
 mens processen er stoppet. Testen kræver broker-PUBACK og nul databaserækker
 før genstart; bagefter kræves alle 40 rækker med korrekte værdier.
 
+VPS-administrator skal først installere den [afgrænsede root-helper](deploy/README.md),
+da GitHub-kontoens eksisterende sudo-adgang kun dækker Nginx.
 Efter merge deployes kun `ingest.py` til stien fra `projekt-c-ingest`'s
 ExecStart. Filen erstattes atomisk med bevaret ejer og rettigheder, og servicens
 QoS 1-abonnement skal blive etableret. Ved fejl gendannes den tidligere fil,
 og servicen genstartes. Identisk indhold giver ingen genstart. Credentials,
-service-unit, QuestDB og webdeploy berøres ikke; SSH bruger kun GitHub Secrets.
+service-unit, QuestDB og webdeploy berøres ikke; SSH bruger kun GitHub Secrets. Workflowet kører den installerede
+root-ejede helper gennem sudo, aldrig uploadede helpermoduler som root.
 
 Manuel kørsel på `main` med `verify_outage=true` gentager testcase 4 på VPS'en:
 360 s stoppet ingest, ingen nye Thingy-rækker under stoppet, derefter mindst

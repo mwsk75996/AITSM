@@ -156,6 +156,16 @@ LTE-registrering forbinder straks. ERROR og DISCONNECTED fra samme forsøg
 udløser kun én timer. Timeren ligger på systemworkqueue; connect/disconnect
 udføres på den separate MQTT-workqueue.
 
+## AITSM PUBACK-ventetid (#87)
+
+`CONFIG_AITSM_MQTT_PUBACK_TIMEOUT_SECONDS` er 30 s som standard.
+Efter genlevering af samme payload/message-id med `DUP=1` fordobles ventetiden
+op til `CONFIG_AITSM_MQTT_PUBACK_MAX_DELAY_SECONDS` (standard 300 s).
+Begge har intervallet 1–3600; initial ventetid over loftet afvises ved build.
+Timeren starter efter socket-skrivningen og ligger på MQTT-workqueue.
+ACK/disconnect annullerer den; nye målinger ændrer ikke deadline. En sund
+forbindelse med normal ACK giver ingen genleveringer eller ekstra TLS-kald.
+
 ## AITSM logging
 
 ### `CONFIG_AITSM_LOG_LEVEL`

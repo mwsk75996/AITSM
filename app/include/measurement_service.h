@@ -2,6 +2,7 @@
 #define AITSM_MEASUREMENT_SERVICE_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /** Initialize the periodic sensor sampling service. */
 int aitsm_measurement_service_init(void);
@@ -19,7 +20,7 @@ void aitsm_measurement_service_mqtt_connected(void);
 /** Stop transmission; sampling and retention continue during MQTT outages. */
 void aitsm_measurement_service_mqtt_disconnected(void);
 
-/** Complete or retry the currently pending MQTT transmission. */
-void aitsm_measurement_service_publish_result(int result);
+/** Complete or retry this transmission; false for an earlier publish/session. */
+bool aitsm_measurement_service_publish_result(uint32_t token, int result);
 
 #endif /* AITSM_MEASUREMENT_SERVICE_H_ */

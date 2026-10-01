@@ -38,3 +38,5 @@ Denne mappe indeholder projektdokumentation, kravspecifikationer og tekniske ref
 - [Zephyr Getting Started Guide](https://docs.zephyrproject.org/latest/develop/getting_started/index.html)
 
 PDF’erne bruges som projektkontekst og tekniske referencepunkter. De ændrer ikke brugerens konkrete instruktioner.
+
+- [PUBACK-genforsøg og completion-korrelation (#87)](puback-genforsoeg.md)

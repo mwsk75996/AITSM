@@ -21,7 +21,7 @@ static atomic_t read_count, publish_calls;
 static int submit_result;
 static int source_result;
 static int64_t first_timestamp;
-static uint32_t drops;
+static uint32_t drops, current_token, next_token, stale_token;
 
 int aitsm_measurement_read(struct aitsm_measurement *sample)
 {
@@ -37,18 +37,19 @@ int aitsm_measurement_read(struct aitsm_measurement *sample)
 	return source_result;
 }
 
-int aitsm_mqtt_publish_payload(const char *payload, size_t length)
+int aitsm_mqtt_publish_payload(const char *payload, size_t length, uint32_t *token)
 {
 	zassert_equal(k_current_get(), &k_sys_work_q.thread, NULL);
 	atomic_inc(&publish_calls);
 	if (submit_result) { return submit_result; }
+	*token = current_token = ++next_token;
 	memcpy(output.payload, payload, length);
 	output.payload[length] = '\0';
 	zassert_ok(k_msgq_put(&sent_queue, &output, K_NO_WAIT), NULL);
 	return 0;
 }
 
-enum action { RESET, START, ONLINE, OFFLINE, ACK, FAIL, STATS, BARRIER };
+enum action { RESET, START, ONLINE, OFFLINE, ACK, FAIL, STATS, STALE_ACK, BARRIER };
 static enum action next_action;
 static void action_handler(struct k_work *work)
 {
@@ -61,8 +62,9 @@ static void action_handler(struct k_work *work)
 	case START: zassert_true(aitsm_measurement_service_start() >= 0, NULL); break;
 	case ONLINE: aitsm_measurement_service_mqtt_connected(); break;
 	case OFFLINE: aitsm_measurement_service_mqtt_disconnected(); break;
-	case ACK: aitsm_measurement_service_publish_result(0); break;
-	case FAIL: aitsm_measurement_service_publish_result(-EIO); break;
+	case ACK: zassert_true(aitsm_measurement_service_publish_result(current_token, 0), NULL); break;
+	case FAIL: zassert_true(aitsm_measurement_service_publish_result(current_token, -EIO), NULL); break;
+	case STALE_ACK: zassert_false(aitsm_measurement_service_publish_result(stale_token, 0), NULL); break;
 	case STATS: drops = aitsm_measurement_service_dropped_samples(); break;
 	case BARRIER: break;
 	}
@@ -197,4 +199,28 @@ ZTEST(measurement_service, test_invalid_time_or_sensor_error_is_not_buffered)
 	zassert_true(aitsm_data_transmission_has_capacity(), NULL);
 	source_result = 0;
 	sample(); act(OFFLINE); act(ONLINE); (void)sent(); act(ACK);
+}
+
+ZTEST(measurement_service, test_queued_old_completion_cannot_remove_new_publish)
+{
+	act(START); sample();
+	act(ONLINE); (void)sent();
+	stale_token = current_token;
+	act(OFFLINE);
+#if defined(CONFIG_AITSM_TRANSMISSION_BATCH)
+	sample();
+#endif
+	act(ONLINE); (void)sent();
+	zassert_not_equal(current_token, stale_token, NULL);
+	act(STALE_ACK);
+	char payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE]; size_t count;
+	zassert_ok(aitsm_data_transmission_format(payload, sizeof(payload), &count), NULL);
+#if defined(CONFIG_AITSM_TRANSMISSION_BATCH)
+	zassert_equal(count, 2, "Stale completion removed unacknowledged readings");
+#else
+	zassert_equal(count, 1, NULL);
+#endif
+	zassert_equal(atomic_get(&publish_calls), 2, NULL);
+	act(ACK); act(STALE_ACK);
+	zassert_true(aitsm_data_transmission_has_capacity(), NULL);
 }

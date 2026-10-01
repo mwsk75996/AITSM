@@ -71,7 +71,7 @@ west twister -p native_sim/native/64 -T tests/led_status
 
 ## `mqtt_client/`
 
-Native tests af den rigtige `mqtt_client.c` med en kontrollerbar fake af NCS MQTT-helperen. Tester at systemworkqueue fortsat kører, mens connect eller publish blokerer, at payloaden kopieres og ikke kan overskrives af et nyt publish, og at afsendelsesfejl og PUBACK rapporteres som app-events. Tester også afvisning uden LTE, annullering af køarbejde ved LTE-tab, dublerede connect-forsøg, sene CONNACK/fejl og gamle/dublerede PUBACK. Testcredentials er kun dummyværdier til fake-backenden.
+Native tests af den rigtige `mqtt_client.c` med en kontrollerbar fake af NCS MQTT-helperen. Tester at systemworkqueue fortsat kører, mens connect eller publish blokerer, at payloaden kopieres og ikke kan overskrives af et nyt publish, og at afsendelsesfejl og PUBACK rapporteres som app-events. Tester også afvisning uden LTE, annullering af køarbejde ved LTE-tab, dublerede connect-forsøg, sene CONNACK/fejl og gamle/dublerede PUBACK. Testcredentials er kun dummyværdier til fake-backenden. Manglende PUBACK testes med 1/2/4/4 s backoff, identisk payload/message-id, DUP-flag, uændret forbindelse og annullering ved ACK/LTE-tab. ACK før socket-return eller under en blokeret skrivning må ikke frigive payloaden for tidligt. Completion-token testes ved retry-fejl og gamle ACKs.
 
 ```bash
 west twister -p native_sim/native/64 -T tests/mqtt_client
@@ -85,7 +85,7 @@ annullering ved LTE-tab samt dublerede events. `app_controller` tester den
 rigtige controller med fake MQTT-, LED- og måleservice-API'er og rigtige
 Zephyr-workqueue-timere (1–2 s). Den verificerer genforsøg uden et nyt LTE-event,
 uændret deadline ved ERROR + DISCONNECTED, underretning af måleservicen om MQTT/LTE-tab,
-afvisning af sen CONNACK og genforsøg efter køafvisning.
+afvisning af sen CONNACK og genforsøg efter køafvisning. Publish-token skal videresendes, og et afvist gammelt resultat må ikke ændre LED.
 
 ```bash
 west twister -p native_sim/native/64 -T tests/mqtt_reconnect -T tests/app_controller
@@ -98,7 +98,7 @@ MQTT-API'er og rigtige Zephyr-timere. Kører både batch og single. Verificerer
 målinger uden MQTT, dræn ved reconnect, fuld buffer uden ubrugelige
 sensorlæsninger, tabstæller, fortsat indsamling under afbrud, kvittering af
 kun den sendte del og afgrænsede publish-genforsøg. Sensorfejl/ugyldig tid
-må ikke lægge en måling i buffer. Hardwarelæsningerne ligger særskilt i
+må ikke lægge en måling i buffer. En gammel completion fra før reconnect må ikke fjerne en nyere afsendelses data. Hardwarelæsningerne ligger særskilt i
 `measurement_source.c`, som medtages i det rigtige Thingy-build.
 
 ```bash

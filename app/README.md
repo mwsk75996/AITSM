@@ -81,7 +81,14 @@ prioritet 5; se [`KCONFIG.md`](KCONFIG.md).
 Publish kopierer payloaden til MQTT-workerens egen buffer, så måleservicen
 kan genbruge sin buffer uden at ændre en igangværende socket-skrivning. Der
 accepteres højst ét ventende publish. Queue-accept er ikke en leveringskvittering:
-afsendelsesfejl og brokerens PUBACK returneres som app-events.
+afsendelsesfejl og brokerens PUBACK returneres som app-events med et lokalt
+afsendelses-token. Måleservicen afviser resultater fra tidligere afsendelser.
+
+Mangler PUBACK efter en vellykket skrivning, sender MQTT-workeren samme
+payload og message-id igen med DUP-flag efter 30 s. Ventetiden fordobles til
+højst 300 s. ACK og disconnect annullerer timeren; nye målinger flytter ikke
+deadline. Genforsøg bevarer TLS-forbindelsen og kræver ingen ekstra MQTT-felter.
+Se [genforsøg og validering](../docs/puback-genforsoeg.md).
 
 Ved MQTT-afbrud eller connect-fejl prøver controlleren igen efter 5, 10, 20,
 40 og højst 60 sekunder, så længe LTE er registreret. MQTT-CONNACK nulstiller

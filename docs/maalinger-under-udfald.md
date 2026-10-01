@@ -98,7 +98,7 @@ Standardfirmware uden AT-overlay blev flashet tilbage: batch/15 s, 20 pladser,
 
 ## Opfølgning
 
-#81 mangler vedvarende ingest-session og sikring af lagring under ingest-udfald.
-Ved mistet PUBACK på en ellers fungerende MQTT-forbindelse kan afsendelse
-fortsat blive blokeret uden timeout; det nye #87 følger sikre, afgrænsede
-genforsøg op. #23/#32 skal verificere PSM/eDRX og det faktiske strøm-/dataforbrug.
+#81 implementerer den vedvarende ingest-session; live-deploy og udfaldstest
+afventer den [afgrænsede deploy-adgang](../cloud/mqtt/deploy/README.md).
+Mistet PUBACK håndteres nu af de [afgrænsede genforsøg i #87](puback-genforsoeg.md).
+#88 følger fejlet HTTP-skrivning til QuestDB op. #23/#32 skal verificere PSM/eDRX og det faktiske strøm-/dataforbrug.
