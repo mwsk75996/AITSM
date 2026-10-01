@@ -1,0 +1,89 @@
+name: QuestDB deduplikering
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - cloud/mqtt/**
+      - .github/workflows/questdb-dedup.yml
+  push:
+    branches: [main]
+    paths:
+      - cloud/mqtt/migrations/**
+      - cloud/mqtt/questdb_schema.py
+      - cloud/mqtt/verify_dedup.py
+      - .github/workflows/questdb-dedup.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: questdb-schema
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    name: QuestDB integrationstest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      questdb:
+        # Same QuestDB version as the VPS; pin the verified image.
+        image: questdb/questdb@sha256:67eaed863ebb2383227919ea9a5499a4a39ceca3862c20b974c84a10e11cdf89
+        ports: ['9000:9000']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Installér testafhængigheder
+        run: python -m pip install -r cloud/mqtt/requirements-dev.txt
+      - name: Vent på den isolerede testdatabase
+        run: |
+          for attempt in {1..30}; do
+            curl --fail --silent 'http://127.0.0.1:9000/exec?query=select%201' >/dev/null && exit 0
+            sleep 1
+          done
+          exit 1
+      - name: Test gentagen ingest mod QuestDB
+        env:
+          QUESTDB_INTEGRATION_URL: http://127.0.0.1:9000
+        run: python -m pytest cloud/mqtt/tests
+
+  migrate:
+    name: Aktivér og verificér på VPS
+    needs: integration
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Konfigurér SSH fra GitHub Secrets
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          test -n "$VPS_SSH_KEY"
+          test -n "$VPS_KNOWN_HOSTS"
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
+      - name: Kør idempotent migration og ingest-verifikation
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh_options=(-i "$HOME/.ssh/deploy_key" -p "${VPS_PORT:-22}" -o BatchMode=yes -o StrictHostKeyChecking=yes)
+          remote_dir=$(ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" 'mktemp -d /tmp/aitsm-dedup.XXXXXX')
+          [[ "$remote_dir" == /tmp/aitsm-dedup.* ]]
+          trap 'ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" "rm -rf -- $remote_dir"' EXIT
+          tar -C cloud/mqtt -czf - questdb_schema.py verify_dedup.py migrations/001_enable_dedup.sql | \
+            ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" "tar -xzf - -C $remote_dir"
+          ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" \
+            "python3 $remote_dir/questdb_schema.py && python3 $remote_dir/verify_dedup.py --service projekt-c-ingest"
