@@ -1,0 +1,92 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ingest:
+    name: MQTT-ingest (pytest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Hent repository
+        uses: actions/checkout@v4
+
+      - name: Installér Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: cloud/mqtt/requirements*.txt
+
+      - name: Installér testafhængigheder
+        run: python -m pip install -r cloud/mqtt/requirements-dev.txt
+
+      - name: Kør ingest-tests
+        run: python -m pytest cloud/mqtt/tests --junitxml=pytest-results.xml
+
+      - name: Gem testresultater
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: pytest-results.xml
+          if-no-files-found: warn
+
+  native:
+    name: Firmware (Twister)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      # NCS v3.4.0, toolchain fbf7391cab (same as activate-ncs.sh).
+      image: ghcr.io/nrfconnect/sdk-nrf-toolchain@sha256:f1dca44678dae83e37404e33f369786f5b2ffe2ed497eec1815f66c3a868bace
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Hent repository
+        uses: actions/checkout@v4
+
+      - name: Installér native buildværktøjer
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential
+
+      - name: Hent Zephyr fra NCS v3.4.0
+        # Native tests need the Zephyr kernel only, not the modem modules.
+        run: |
+          git clone --depth 1 --branch ncs-v3.4.0 \
+            https://github.com/nrfconnect/sdk-zephyr.git "$RUNNER_TEMP/zephyr"
+          west init -l "$RUNNER_TEMP/zephyr"
+          echo "ZEPHYR_BASE=$RUNNER_TEMP/zephyr" >> "$GITHUB_ENV"
+
+      - name: Kør native firmware-tests
+        run: |
+          python "$ZEPHYR_BASE/scripts/twister" \
+            -p native_sim/native/64 \
+            -T tests/data_transmission -T tests/led_status \
+            --outdir twister-out --inline-logs
+
+      - name: Gem testresultater og logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: twister-results
+          path: |
+            twister-out/twister.json
+            twister-out/twister*.xml
+            twister-out/twister.log
+            twister-out/**/build.log
+            twister-out/**/handler.log
+          if-no-files-found: warn

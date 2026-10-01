@@ -19,6 +19,7 @@ Denne rapport beskriver testen af hele kæden fra sensor over databehandling, ba
 
 - Test-overlayet giver en shell på USB-konsollen med `at <kommando>` og `kernel reboot cold`. Det bruges kun til test og er ikke en del af standardbuildet.
 - Enhedens log blev optaget med UTC-tidsstempel fra værten pr. linje.
+- LED-status i testcase 2 og 5 er udledt af eventrækkefølgen i loggen og koden i `app_controller.c`; farven er ikke aflæst visuelt på enheden.
 - For hvert tidsvindue blev hver `Måling indsamlet`-linje i loggen sammenlignet med rækkerne i `sensor_readings` for `device_id = 'thingy91x'`. Sammenligningen omfatter antal, rækkefølge, temperatur, batteri og tidsforskel, samt huller over 20 s og dubletter.
 - Indgreb på VPS'en (genstart af Mosquitto, stop af ingest) blev udført med `systemctl` over SSH.
 
@@ -56,7 +57,7 @@ nrfutil device program --firmware build/thingy91x_at_shell/dfu_application.zip \
 - Efter `CFUN=1`: LTE registreret efter 2 s og MQTT forbundet efter 8 s ("med eksisterende session").
 - De 2 målinger fra før udfaldet blev bevaret og sendt med næste batch (13 af 13 rækker i QuestDB).
 - Hul i dataene 10:39:53–10:42:13, fordi der ikke måles, mens MQTT er nede (#77).
-- Rækkefølgen af events får LED'en til at vise "LTE forbundet" under hele udfaldet (#82).
+- Eventrækkefølgen i loggen og koden viser, at LED-status sættes til "LTE forbundet" under udfaldet; farven er ikke verificeret visuelt (#82).
 
 ### 3. Broker-genstart
 
@@ -75,7 +76,7 @@ Firmware bygget med forkert `AITSM_MQTT_PASSWORD`:
 - Tydelig log: `MQTT-forbindelse afvist, return code: 5` (not authorized).
 - Ingen crash og intet reboot-loop (observeret i 2,5 min).
 - Intet nyt connect-forsøg (se #76).
-- Fejl-LED'en overskrives med det samme af "LTE forbundet" ved det efterfølgende disconnect-event (#82).
+- Koden og eventrækkefølgen i loggen viser, at fejl-LED-status overskrives med "LTE forbundet" ved det efterfølgende disconnect-event; farven er ikke verificeret visuelt (#82).
 
 ### 6. Tabt PUBACK / samme payload to gange
 
@@ -96,6 +97,8 @@ Dækket af unit tests i `tests/data_transmission` (se [`tests/README.md`](../tes
 
 - `west twister -p native_sim/native/64 -T tests/data_transmission -T tests/led_status`: 14/14 bestået.
 - `cloud/mqtt`: `pytest`: 51/51 bestået.
+
+GitHub Actions-workflowet [`Tests`](../.github/workflows/tests.yml) kører pytest og native Twister-tests på PR'er mod `main` og push til `main`. CI bruger Python 3.12, Nordic-toolchainen til NCS v3.4.0 og Zephyr fra `ncs-v3.4.0`. Hardwaretests og build-only-testen `nb_iot_config` køres separat og er ikke dækket af dette workflow.
 
 ## Fund
 

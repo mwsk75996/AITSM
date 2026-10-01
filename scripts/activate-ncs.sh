@@ -23,6 +23,8 @@ export ZEPHYR_BASE="$NCS_ROOT/zephyr"
 export ZEPHYR_SDK_INSTALL_DIR="$NCS_TOOLCHAIN_ROOT/opt/zephyr-sdk"
 export NRFUTIL_HOME="$NCS_TOOLCHAIN_ROOT/nrfutil/home"
 export PYTHONPATH="$NCS_TOOLCHAIN_ROOT/usr/local/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
+# Match the toolchain bundle's loader paths (needed by Python's _ctypes).
+export LD_LIBRARY_PATH="$NCS_TOOLCHAIN_ROOT/lib:$NCS_TOOLCHAIN_ROOT/lib/x86_64-linux-gnu:$NCS_TOOLCHAIN_ROOT/usr/local/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 export PATH="$NCS_TOOLCHAIN_ROOT/usr/local/bin:$NCS_TOOLCHAIN_ROOT/nrfutil/bin:$NCS_TOOLCHAIN_ROOT/opt/zephyr-sdk/hosttools:$NCS_TOOLCHAIN_ROOT/opt/zephyr-sdk/gnu/arm-zephyr-eabi/bin:$NCS_ROOT/scripts:$PATH"
 
