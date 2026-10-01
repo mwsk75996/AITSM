@@ -17,6 +17,8 @@ Denne mappe indeholder projektdokumentation, kravspecifikationer og tekniske ref
 - [MQTT-netværkskø (issue #75)](mqtt-netvaerksko.md)
 - [MQTT-reconnect (issue #76)](mqtt-reconnect.md)
 
+- [MQTT/QuestDB-opsætning og deduplikering (issue #78)](../cloud/mqtt/README.md)
+
 ## Referencefiler
 
 - [UCL/Micro Technic-projektspecifikationer](references/requirements/ucl-mt-project-requirements-2026-08-26.pdf)
