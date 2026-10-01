@@ -123,3 +123,12 @@ ventetid og bevarede målinger, som blev kvitteret og set i QuestDB.
 Se [reconnect-rapporten](mqtt-reconnect.md) for tider, profil og resterende fund.
 CI dækker nu 44 native testcases samt 51 pytest-tests. Resultaterne ovenfor
 beskriver den oprindelige test den 23. september.
+
+
+Deduplikering (#78) er efterfølgende aktiveret og verificeret på VPS'en:
+gentagen ingest giver én række pr. `(timestamp, device_id)`; se
+[cloud-opsætningen](../cloud/mqtt/README.md). Målinger under MQTT/LTE-udfald
+(#77) er verificeret med 30/30 rækker uden huller og seks målinger under hvert
+udfald; se [beslutning og rapport](maalinger-under-udfald.md). CI består nu med
+62 native og 58 Python-unit-tests; databaseintegrationen giver i alt 59
+Python-tests. Mistet PUBACK uden disconnect følges op særskilt i #87.
