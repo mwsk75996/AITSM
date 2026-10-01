@@ -18,7 +18,9 @@ root-ejet uden skriverettigheder til deploy-kontoen. Wrapperen accepterer kun
 en `/tmp/aitsm-ingest.XXXXXX`-mappe med et regulært `ingest.py` og eventuelt
 `--verify-outage`. Den kører den installerede helper, aldrig et uploadet
 Python-helpermodul som root. Helperen kan kun ændre scriptet fra den faste
-`projekt-c-ingest`-service og genstarte netop den service. Uploadet kode bliver
+`projekt-c-ingest`-service og genstarte netop den service. Udfaldstesten opretter desuden en
+transient sikkerhedstimer, som kun starter samme service efter syv minutter;
+den slettes igen efter vellykket genstart. Uploadet kode bliver
 kørt som servicens konfigurerede bruger; adgang til denne wrapper er derfor
 adgang til at deploye ingest-applikationen.
 

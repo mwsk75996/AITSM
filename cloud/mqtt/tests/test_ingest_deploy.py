@@ -65,7 +65,10 @@ def test_outage_query_failure_still_starts_ingest(monkeypatch):
     commands = outage_setup(monkeypatch, query)
     with pytest.raises(RuntimeError, match="Database utilgængelig"):
         outage.verify()
-    assert commands[-2:] == [["systemctl", "stop", outage.SERVICE], ["systemctl", "start", outage.SERVICE]]
+    assert ["systemctl", "stop", outage.SERVICE] in commands
+    assert commands[-2:] == [["systemctl", "start", outage.SERVICE],
+                             ["systemctl", "stop", outage.RESTORE_UNIT + ".timer"]]
+    assert commands[1][0] == "systemd-run", "Guard must be armed before stopping ingest"
 
 
 def test_outage_requires_recent_device_data_before_stopping(monkeypatch):
@@ -86,3 +89,27 @@ def test_outage_checks_recovered_batch_cadence(monkeypatch):
     monkeypatch.setattr(outage.time, "time", lambda: next(moments))
     outage.verify()
     assert commands[-1] == ["systemctl", "is-active", "--quiet", outage.SERVICE]
+
+
+def test_failed_restart_keeps_independent_restore_timer_armed(monkeypatch):
+    commands = []
+    def run(command, **kwargs):
+        commands.append(command)
+        if command == ["systemctl", "start", outage.SERVICE]:
+            raise RuntimeError("Genstart fejlede")
+    monkeypatch.setattr(outage.subprocess, "run", run)
+    with pytest.raises(RuntimeError, match="Genstart fejlede"):
+        with outage.restore_ingest():
+            raise OSError("Forbindelse mistet")
+    assert commands[0][0] == "systemd-run"
+    assert ["systemctl", "stop", outage.RESTORE_UNIT + ".timer"] not in commands
+
+
+def test_termination_signal_runs_restore_cleanup(monkeypatch):
+    commands = []
+    monkeypatch.setattr(outage.subprocess, "run", lambda command, **kwargs: commands.append(command))
+    with pytest.raises(InterruptedError):
+        with outage.restore_ingest():
+            outage.signal.getsignal(outage.signal.SIGTERM)(outage.signal.SIGTERM, None)
+    assert commands[-2:] == [["systemctl", "start", outage.SERVICE],
+                             ["systemctl", "stop", outage.RESTORE_UNIT + ".timer"]]
