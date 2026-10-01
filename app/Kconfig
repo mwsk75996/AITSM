@@ -53,6 +53,24 @@ config AITSM_TRANSMISSION_PAYLOAD_SIZE
 
 endmenu
 
+menu "AITSM MQTT worker"
+
+config AITSM_MQTT_WORKQUEUE_STACK_SIZE
+	int "MQTT workqueue stack size"
+	range 2048 16384
+	default 4096
+	help
+		Stack reserved for blocking MQTT connect and publish operations.
+
+config AITSM_MQTT_WORKQUEUE_PRIORITY
+	int "MQTT workqueue priority"
+	range 0 14
+	default 5
+	help
+		Preemptible priority of the dedicated MQTT workqueue.
+
+endmenu
+
 menu "AITSM logging"
 
 config AITSM_LOG_LEVEL
