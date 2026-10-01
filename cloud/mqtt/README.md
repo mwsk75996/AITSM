@@ -37,7 +37,7 @@ får modtagelsestid og har ikke samme sikkerhed mod gentagelser.
 Løsningen tilføjer ingen MQTT-felter, ekstra radioopkoblinger eller lokale
 lister over allerede modtagne ID'er. Deduplikering sker ved lagringen og
 virker også efter ingest-genstart. PUBACK er fortsat kun brokerens kvittering:
-lagring under ingest-udfald behandles i #81.
+vedvarende ingest-session beskytter levering under ingest-udfald som beskrevet nedenfor.
 
 Se QuestDBs primære dokumentation for [DDL og eksisterende data](https://questdb.com/docs/query/sql/alter-table-enable-deduplication/)
 og [nøgler og semantik](https://questdb.com/docs/concepts/deduplication/).
@@ -72,3 +72,55 @@ QUESTDB_INTEGRATION_URL=http://127.0.0.1:19078 python -m pytest cloud/mqtt/tests
 
 Testen sender samme batch to gange gennem den rigtige ingest-kode, verificerer
 separate enheder ved samme tid, last-write-wins og en gentagen migration.
+
+
+## Vedvarende ingest-session (#81)
+
+Ingest bruger MQTT v5 med det faste client-id `projekt-c-questdb-ingest`,
+`clean_start=False` og `SessionExpiryInterval=86400` (ét døgn). Dermed
+bevarer Mosquitto abonnementet og køer QoS 1-beskeder under stop, genstart
+og deploy. Det gælder også den første forbindelse fra en ny Python-proces.
+Ingest abonnerer fortsat med QoS 1 efter hver forbindelse; dette opdaterer
+abonnementet uden at kassere ventende beskeder. To ingest-processer må ikke
+køre samtidig med samme client-id, da de ellers overtager hinandens forbindelse.
+
+Sessionen skal have været forbundet og have fået SUBACK mindst én gang,
+før offline-levering er beskyttet. Efter ét døgn uden ingest udløber sessionen.
+Brokerens `max_queued_messages` og eventuelle `max_queued_bytes` kan sætte
+en tidligere grænse. Mosquittos standard er 1000 ventende QoS 1/2-beskeder
+pr. klient; grænsen er antal MQTT-beskeder, ikke målinger. En batch kan derfor
+gemme op til 20 målinger på samme køplads. Vi ændrer ikke broker-konfigurationen
+eller genstarter brokeren for denne ændring. Broker-persistence beskytter ved
+normal broker-genstart; strømsvigt kan stadig miste data siden seneste disksave.
+
+Det tilføjer kun sessionegenskaber ved ingest-connect. Enheden sender samme
+payload og batches som før. Dubletter ved genlevering håndteres af #78.
+Enhedens PUBACK er fortsat brokerens kvittering, og ingest kvitterer automatisk
+efter callback: fejlet HTTP-skrivning til QuestDB er en særskilt risiko, som
+sessionen alene ikke afhjælper.
+
+Se [Pahos connect-API](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html)
+og [Mosquittos kø- og persistencegrænser](https://mosquitto.org/man/mosquitto-conf-5.html).
+
+### Deploy og testcase 4
+
+Workflowet [`Vedvarende ingest-session`](../../.github/workflows/ingest-session.yml)
+tester stop/genstart af den rigtige ingest-proces mod isoleret Mosquitto 2.0.22
+og QuestDB 10.0.1. To batches med 40 målinger og en gentagelse publiceres,
+mens processen er stoppet. Testen kræver broker-PUBACK og nul databaserækker
+før genstart; bagefter kræves alle 40 rækker med korrekte værdier.
+
+Efter merge deployes kun `ingest.py` til stien fra `projekt-c-ingest`'s
+ExecStart. Filen erstattes atomisk med bevaret ejer og rettigheder, og servicens
+QoS 1-abonnement skal blive etableret. Ved fejl gendannes den tidligere fil,
+og servicen genstartes. Identisk indhold giver ingen genstart. Credentials,
+service-unit, QuestDB og webdeploy berøres ikke; SSH bruger kun GitHub Secrets.
+
+Manuel kørsel på `main` med `verify_outage=true` gentager testcase 4 på VPS'en:
+360 s stoppet ingest, ingen nye Thingy-rækker under stoppet, derefter mindst
+én genleveret batch med målinger fra udfaldet og uden huller/dubletter.
+Testen kræver en aktiv Thingy med standardprofilen (15 s, 20 målinger).
+Et `finally`-forløb starter ingest igen, også ved testfejl. Workflowloggen
+indeholder kødirektiver og de genleverede rækker til kontrol; ingen syntetiske
+målinger indsættes. Testen udføres kun ved dette eksplicitte valg, ikke ved
+normale deploys.
