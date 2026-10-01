@@ -1,0 +1,6 @@
+# Anonymous test publisher, like thingy91x on the VPS.
+topic write aitsm/+/telemetry
+
+# Ingest, like cloud_ingest on the VPS (tests/conftest.py).
+user test-user
+topic read aitsm/+/telemetry

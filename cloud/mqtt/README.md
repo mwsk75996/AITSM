@@ -109,6 +109,22 @@ brokeren, når QuestDB har gemt målingerne (se nedenfor).
 Se [Pahos connect-API](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html)
 og [Mosquittos kø- og persistencegrænser](https://mosquitto.org/man/mosquitto-conf-5.html).
 
+### Mosquitto: `per_listener_settings false`
+
+Mosquitto 2.0 (testet med 2.0.18 og 2.0.22) afviser ACL-tjekket for en
+afbrudt klient, når `per_listener_settings true` er sat. Beskeder til den
+offline ingest-session kasseres så, selv om enheden får PUBACK. Det tabte
+batchen i den første live-kørsel af testcase 4 (2026-10-01). Med
+`per_listener_settings true` gælder en `acl_file` før første `listener`
+desuden ingen listener, så ACL'en var reelt slået fra.
+
+VPS'en bruger derfor `per_listener_settings false` med `allow_anonymous`,
+`password_file` og `acl_file` angivet én gang; Mosquitto afviser gentagne
+værdier i den tilstand. ACL'en giver `thingy91x` skriveadgang og `cloud_ingest`
+læseadgang til `aitsm/+/telemetry`. Testbrokeren i `tests/mosquitto/` har samme
+tilstand og en tilsvarende ACL, og udfaldstesten stopper, før ingest stoppes,
+hvis brokeren har `per_listener_settings true`.
+
 ### Deploy og testcase 4
 
 Workflowet [`Vedvarende ingest-session`](../../.github/workflows/ingest-session.yml)

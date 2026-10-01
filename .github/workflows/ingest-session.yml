@@ -42,7 +42,7 @@ jobs:
       - name: Start isoleret testbroker
         run: |
           docker run -d --name aitsm-session-broker -p 1883:1883 \
-            -v "$GITHUB_WORKSPACE/cloud/mqtt/tests/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+            -v "$GITHUB_WORKSPACE/cloud/mqtt/tests/mosquitto:/mosquitto/config:ro" \
             eclipse-mosquitto@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
       - name: Installér testafhængigheder
         run: python -m pip install -r cloud/mqtt/requirements-dev.txt

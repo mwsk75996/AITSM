@@ -140,3 +140,14 @@ def test_termination_signal_runs_restore_cleanup(monkeypatch):
             outage.signal.getsignal(outage.signal.SIGTERM)(outage.signal.SIGTERM, None)
     assert commands[-2:] == [["systemctl", "start", outage.SERVICE],
                              ["systemctl", "stop", outage.RESTORE_UNIT + ".timer"]]
+
+
+def test_broker_limits_reject_per_listener_settings(tmp_path, capsys):
+    (tmp_path / "conf.d").mkdir()
+    (tmp_path / "mosquitto.conf").write_text("persistence true\npassword_file /etc/mosquitto/passwd\n")
+    (tmp_path / "conf.d" / "aitsm.conf").write_text("per_listener_settings false\n")
+    outage.broker_limits(tmp_path)
+    assert capsys.readouterr().out == "Mosquitto persistence=true\nMosquitto per_listener_settings=false\n"
+    (tmp_path / "conf.d" / "aitsm.conf").write_text("per_listener_settings true\n")
+    with pytest.raises(RuntimeError, match="per_listener_settings"):
+        outage.broker_limits(tmp_path)
