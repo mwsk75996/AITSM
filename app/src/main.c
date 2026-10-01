@@ -2,6 +2,7 @@
 #include <zephyr/logging/log.h>
 
 #include <data_transmission.h>
+#include <app_controller.h>
 #include <led_status.h>
 #include <measurement_service.h>
 #include <network.h>
@@ -34,6 +35,7 @@ int main(void)
 		return err;
 	}
 
+	aitsm_app_controller_init();
 	err = network_init();
 	if (err != 0) {
 		return err;

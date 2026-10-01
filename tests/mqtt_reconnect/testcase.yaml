@@ -1,0 +1,12 @@
+tests:
+  aitsm.mqtt_reconnect:
+    platform_allow:
+      - native_sim/native/64
+    integration_platforms:
+      - native_sim/native/64
+  aitsm.mqtt_reconnect.custom:
+    platform_allow:
+      - native_sim/native/64
+    extra_configs:
+      - CONFIG_AITSM_MQTT_RECONNECT_INITIAL_DELAY_SECONDS=3
+      - CONFIG_AITSM_MQTT_RECONNECT_MAX_DELAY_SECONDS=19

@@ -69,6 +69,16 @@ config AITSM_MQTT_WORKQUEUE_PRIORITY
 	help
 		Preemptible priority of the dedicated MQTT workqueue.
 
+config AITSM_MQTT_RECONNECT_INITIAL_DELAY_SECONDS
+	int "Initial MQTT reconnect delay"
+	range 1 3600
+	default 5
+
+config AITSM_MQTT_RECONNECT_MAX_DELAY_SECONDS
+	int "Maximum MQTT reconnect delay"
+	range 1 3600
+	default 60
+
 endmenu
 
 menu "AITSM logging"
