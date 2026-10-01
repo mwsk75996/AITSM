@@ -112,3 +112,14 @@ GitHub Actions-workflowet [`Tests`](../.github/workflows/tests.yml) kører pytes
 | #82 | LED viser LTE forbundet efter MQTT-fejl og under LTE-udfald |
 
 Testcase 2–6 bør køres igen, når fundene er rettet.
+
+
+## Opfølgning 1. oktober 2026
+
+Netværkskøen (#75) er verificeret på hardware med LTE-events under connect;
+se [rapporten](mqtt-netvaerksko.md). Reconnect (#76) består nu testcase 3:
+to broker-genstarter uden LTE-tab, automatisk reconnect efter fem sekunders
+ventetid og bevarede målinger, som blev kvitteret og set i QuestDB.
+Se [reconnect-rapporten](mqtt-reconnect.md) for tider, profil og resterende fund.
+CI dækker nu 44 native testcases samt 51 pytest-tests. Resultaterne ovenfor
+beskriver den oprindelige test den 23. september.
