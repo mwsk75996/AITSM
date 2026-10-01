@@ -18,6 +18,7 @@ struct mqtt_helper_cfg {
 };
 int mqtt_helper_init(struct mqtt_helper_cfg *cfg);
 int mqtt_helper_connect(struct mqtt_helper_conn_params *params);
+int mqtt_helper_disconnect(void);
 int mqtt_helper_publish(const struct mqtt_publish_param *param);
 uint16_t mqtt_helper_msg_id_get(void);
 #endif

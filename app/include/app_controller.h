@@ -15,4 +15,7 @@ enum aitsm_app_event_type {
 /** Post an event to the application workqueue without blocking a callback. */
 int aitsm_app_post_event(enum aitsm_app_event_type type, int value);
 
+/** Initialize controller state before starting LTE or MQTT callbacks. */
+void aitsm_app_controller_init(void);
+
 #endif /* AITSM_APP_CONTROLLER_H_ */

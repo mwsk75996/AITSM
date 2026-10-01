@@ -44,6 +44,7 @@ target_sources(app PRIVATE
 	src/measurement_service.c
 	src/network.c
 	src/mqtt_client.c
+	src/mqtt_reconnect.c
 	src/mqtt_credentials_provision.c
 	src/led_status.c
 )

@@ -144,6 +144,18 @@ hukommelsesforbrug og giver plads til at skifte serializer senere.
 
 Publish flyttes også: NCS' `mqtt_helper_publish()` kalder Zephyrs synkrone `mqtt_publish()`, som tager klientens mutex og skriver til socketten. Workeren ejer en separat payloadbuffer og accepterer højst ét ventende publish. Afsendelsesfejl og PUBACK sendes tilbage som app-events. Måleservicens tilstand og app-events behandles fortsat på systemworkqueue.
 
+## AITSM MQTT-reconnect (#76)
+
+`CONFIG_AITSM_MQTT_RECONNECT_INITIAL_DELAY_SECONDS` er som standard 5 sekunder.
+Efter hvert mislykket forsøg fordobles ventetiden til højst
+`CONFIG_AITSM_MQTT_RECONNECT_MAX_DELAY_SECONDS` (standard 60 sekunder).
+Begge har intervallet 1–3600; buildet afviser en startværdi over loftet.
+
+MQTT-CONNACK nulstiller backoff. LTE-tab annullerer ventende retries, og ny
+LTE-registrering forbinder straks. ERROR og DISCONNECTED fra samme forsøg
+udløser kun én timer. Timeren ligger på systemworkqueue; connect/disconnect
+udføres på den separate MQTT-workqueue.
+
 ## AITSM logging
 
 ### `CONFIG_AITSM_LOG_LEVEL`

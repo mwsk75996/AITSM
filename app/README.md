@@ -61,6 +61,7 @@ Kconfig-indstilling i `prj.conf`.
   og UTC-tid med det konfigurerede interval.
 - `src/led_status.c` styrer RGB-LED'en.
 - `src/mqtt_client.c` opretter MQTT/TLS-forbindelsen efter LTE-registrering.
+- `src/mqtt_reconnect.c` styrer reconnect og eksponentiel backoff.
 - `src/network.c` initialiserer modemmet, starter LTE-forbindelsen og reagerer på
   ændringer i netværksregistreringen.
 - `src/main.c` initialiserer LED- og netværksmodulerne.
@@ -80,6 +81,19 @@ Publish kopierer payloaden til MQTT-workerens egen buffer, så måleservicen
 kan genbruge sin buffer uden at ændre en igangværende socket-skrivning. Der
 accepteres højst ét ventende publish. Queue-accept er ikke en leveringskvittering:
 afsendelsesfejl og brokerens PUBACK returneres som app-events.
+
+Ved MQTT-afbrud eller connect-fejl prøver controlleren igen efter 5, 10, 20,
+40 og højst 60 sekunder, så længe LTE er registreret. MQTT-CONNACK nulstiller
+backoff. LTE-tab annullerer timeren og stopper måleservicen straks; ved ny
+LTE-registrering startes et forsøg med det samme. Dublerede fejl- og
+disconnect-events flytter ikke den allerede planlagte deadline. Reconnect
+kræver dermed ingen genstart eller ny LTE-registrering efter broker-genstart.
+
+MQTT-klienten afviser connect/publish uden LTE, beskytter mod parallelle
+connect-forsøg og ignorerer PUBACK fra tidligere publish/sessioner. En sen
+CONNACK efter LTE-tab starter ikke målinger; forbindelsen lukkes på
+netværkskøen. Et allerede igangværende DNS/TCP/TLS-kald kan først afsluttes,
+når helperen returnerer; systemworkqueue behandler fortsat LTE-tab imens.
 
 Afviste eller afbrudte MQTT-forbindelser, helper-fejl og publish-resultater
 følger samme event-flow og logges centralt af applikationscontrolleren.

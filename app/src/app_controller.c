@@ -5,10 +5,56 @@
 #include <led_status.h>
 #include <measurement_service.h>
 #include <mqtt_client.h>
+#include <mqtt_reconnect.h>
 
 LOG_MODULE_REGISTER(app_controller, CONFIG_AITSM_LOG_LEVEL);
 
 #define AITSM_APP_EVENT_QUEUE_LENGTH 16
+
+static struct aitsm_reconnect_state reconnect;
+static void reconnect_work_handler(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(reconnect_work, reconnect_work_handler);
+
+static void apply_reconnect(enum aitsm_reconnect_event event)
+{
+	struct aitsm_reconnect_result result = aitsm_reconnect_handle(&reconnect, event);
+	switch (result.action) {
+	case AITSM_RECONNECT_CONNECT: {
+		int err = aitsm_mqtt_connect();
+		if (err < 0) {
+			(void)aitsm_app_post_event(AITSM_APP_EVENT_MQTT_ERROR, err);
+		}
+		break;
+	}
+	case AITSM_RECONNECT_SCHEDULE:
+		LOG_INF("MQTT-reconnect om %u sekunder", result.delay_seconds);
+		(void)k_work_reschedule(&reconnect_work, K_SECONDS(result.delay_seconds));
+		break;
+	case AITSM_RECONNECT_CANCEL:
+		(void)k_work_cancel_delayable(&reconnect_work);
+		break;
+	case AITSM_RECONNECT_NONE:
+		break;
+	}
+}
+
+static void reconnect_work_handler(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	apply_reconnect(AITSM_RECONNECT_TIMER);
+}
+
+void aitsm_app_controller_init(void)
+{
+	aitsm_reconnect_init(&reconnect);
+}
+
+static void lte_lost(void)
+{
+	aitsm_mqtt_set_lte_available(false);
+	aitsm_measurement_service_mqtt_disconnected();
+	apply_reconnect(AITSM_RECONNECT_LTE_DOWN);
+}
 
 struct aitsm_app_event {
 	enum aitsm_app_event_type type;
@@ -24,30 +70,50 @@ static void handle_event(const struct aitsm_app_event *event)
 {
 	switch (event->type) {
 	case AITSM_APP_EVENT_LTE_SEARCHING:
+		lte_lost();
 		(void)led_status_set(LED_STATUS_SEARCHING);
 		break;
 	case AITSM_APP_EVENT_LTE_CONNECTED:
-		(void)led_status_set(LED_STATUS_LTE_CONNECTED);
-		(void)aitsm_mqtt_connect();
+		aitsm_mqtt_set_lte_available(true);
+		if (reconnect.phase != AITSM_RECONNECT_CONNECTED) {
+			(void)led_status_set(LED_STATUS_LTE_CONNECTED);
+		}
+		apply_reconnect(AITSM_RECONNECT_LTE_UP);
 		break;
 	case AITSM_APP_EVENT_LTE_DISCONNECTED:
 		LOG_INF("LTE-afbrudt event behandlet: %d", event->value);
+		lte_lost();
 		(void)led_status_set(LED_STATUS_DISCONNECTED);
 		break;
 	case AITSM_APP_EVENT_MQTT_CONNECTED:
+		if (!reconnect.lte_available) {
+			(void)aitsm_mqtt_disconnect();
+			break;
+		}
+		apply_reconnect(AITSM_RECONNECT_MQTT_UP);
 		LOG_INF("Cloud MQTT event modtaget: forbundet");
 		(void)led_status_set(LED_STATUS_MQTT_CONNECTED);
 		aitsm_measurement_service_mqtt_connected();
 		break;
 	case AITSM_APP_EVENT_MQTT_DISCONNECTED:
 		LOG_WRN("Cloud MQTT event modtaget: afbrudt (%d)", event->value);
-		/* LTE er stadig oppe, så vis den stabile LTE-status igen. */
-		(void)led_status_set(LED_STATUS_LTE_CONNECTED);
+		if (!reconnect.lte_available) {
+			(void)led_status_set(LED_STATUS_DISCONNECTED);
+		} else if (reconnect.phase != AITSM_RECONNECT_WAITING) {
+			/* A duplicate disconnect must not overwrite a preceding error. */
+			(void)led_status_set(LED_STATUS_LTE_CONNECTED);
+		}
 		aitsm_measurement_service_mqtt_disconnected();
+		apply_reconnect(AITSM_RECONNECT_FAILURE);
 		break;
 	case AITSM_APP_EVENT_MQTT_ERROR:
 		LOG_ERR("Cloud MQTT-fejl modtaget af applikationen: %d", event->value);
-		(void)led_status_set(LED_STATUS_ERROR);
+		aitsm_measurement_service_mqtt_disconnected();
+		if (reconnect.lte_available) {
+			(void)led_status_set(LED_STATUS_ERROR);
+			(void)aitsm_mqtt_disconnect();
+		}
+		apply_reconnect(AITSM_RECONNECT_FAILURE);
 		break;
 	case AITSM_APP_EVENT_MQTT_PUBLISH_RESULT:
 		aitsm_measurement_service_publish_result(event->value);
