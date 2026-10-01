@@ -1,0 +1,13 @@
+tests:
+  aitsm.measurement_service:
+    platform_allow:
+      - native_sim/native/64
+    integration_platforms:
+      - native_sim/native/64
+    timeout: 120
+  aitsm.measurement_service.single:
+    platform_allow:
+      - native_sim/native/64
+    extra_configs:
+      - CONFIG_AITSM_TRANSMISSION_SINGLE=y
+    timeout: 120

@@ -57,14 +57,15 @@ Kconfig-indstilling i `prj.conf`.
 - `src/app_controller.c` er applikationslogikken og dens message queue.
 - `src/data_transmission.c` opbevarer målinger i en fast buffer og formaterer
   single- eller batch-payloads.
-- `src/measurement_service.c` læser modemtemperatur, nPM1300-batterispænding
-  og UTC-tid med det konfigurerede interval.
+- `src/measurement_service.c` styrer uafhængig måle- og afsendelsesplanlægning.
+- `src/measurement_source.c` læser modemtemperatur, nPM1300-batterispænding
+  og UTC-tid.
 - `src/led_status.c` styrer RGB-LED'en.
 - `src/mqtt_client.c` opretter MQTT/TLS-forbindelsen efter LTE-registrering.
 - `src/mqtt_reconnect.c` styrer reconnect og eksponentiel backoff.
 - `src/network.c` initialiserer modemmet, starter LTE-forbindelsen og reagerer på
   ændringer i netværksregistreringen.
-- `src/main.c` initialiserer LED- og netværksmodulerne.
+- `src/main.c` initialiserer modulerne og starter måleplanlægning efter modemmet.
 
 ## Tråd- og eventstruktur
 
@@ -84,7 +85,7 @@ afsendelsesfejl og brokerens PUBACK returneres som app-events.
 
 Ved MQTT-afbrud eller connect-fejl prøver controlleren igen efter 5, 10, 20,
 40 og højst 60 sekunder, så længe LTE er registreret. MQTT-CONNACK nulstiller
-backoff. LTE-tab annullerer timeren og stopper måleservicen straks; ved ny
+backoff. LTE-tab annullerer timeren og stopper afsendelse straks; ved ny
 LTE-registrering startes et forsøg med det samme. Dublerede fejl- og
 disconnect-events flytter ikke den allerede planlagte deadline. Reconnect
 kræver dermed ingen genstart eller ny LTE-registrering efter broker-genstart.
@@ -125,6 +126,29 @@ Batteriværdien er i første version et lineært estimat ud fra nPM1300-
 batterispændingen (3,2 V = 0 % og 4,2 V = 100 %). Det er tilstrækkeligt til
 pipeline-test, men bør kalibreres eller erstattes af en egentlig fuel-gauge-
 model før præcis batterirapportering.
+
+## Målinger under MQTT-udfald (#77)
+
+Målinger starter efter modeminitialisering og fortsætter på den normale
+15-sekunders cadence, også mens MQTT eller LTE er nede. Afsendelse er en
+separat opgave, som kun kører med MQTT-forbindelse. Reconnect sender de
+bufferede målinger samlet; PUBACK fjerner kun den kvitterede del, så nyere
+målinger fra ventetiden bliver liggende.
+
+Den faste RAM-buffer beskytter de ældste, ubekræftede målinger. Når den er
+fuld, springes nye målepladser over og tælles; ingen data overskrives, og der
+udføres ingen sensor-/AT-læsninger, som ikke kan gemmes. Et fuldt-buffer-forløb
+logges samlet. Målingerne genoptages på den normale cadence efter frigivet plads.
+
+Med standardprofilen er der plads til 20 målinger (ca. fem minutters
+målepladser i en tom buffer); eksisterende data reducerer pladsen under et
+udfald. Single-profilen har én plads. RAM-data og tabstæller nulstilles ved
+reboot/strømsvigt. Før UTC-tiden er gyldig gemmes ingen udaterede målinger.
+
+Dette vælger mulighed A i #77: lokal indsamling og buffering, med en tydelig
+grænse for tab. Det kræver ingen ekstra radioopkoblinger eller flash-skrivninger.
+Læs [beslutningen og valideringen](../docs/maalinger-under-udfald.md).
+PSM/eDRX og målte strøm-/dataforbrug behandles fortsat i #23 og #32.
 
 ## Logning
 

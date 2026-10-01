@@ -154,3 +154,31 @@ ZTEST(data_transmission, test_worst_case_full_buffer_fits_payload)
 	zassert_not_null(strstr(payload, "\"temperature\":-21474836.48"), NULL);
 	zassert_not_null(strstr(payload, "\"battery\":655.35"), NULL);
 }
+
+ZTEST(data_transmission, test_empty_buffer_does_not_flush_and_has_capacity)
+{
+	zassert_true(aitsm_data_transmission_has_capacity(), NULL);
+	zassert_false(aitsm_data_transmission_should_flush(INT64_MAX), NULL);
+}
+
+ZTEST(data_transmission, test_full_buffer_preserves_oldest_and_recovers_after_ack)
+{
+	struct aitsm_measurement sample = first_measurement;
+	for (size_t i = 0; i < TEST_MAX_MEASUREMENTS; i++) {
+		sample.timestamp = first_measurement.timestamp + i;
+		zassert_ok(aitsm_data_transmission_add(&sample), NULL);
+	}
+	zassert_false(aitsm_data_transmission_has_capacity(), NULL);
+	char payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE];
+	size_t count;
+	zassert_ok(aitsm_data_transmission_format(payload, sizeof(payload), &count), NULL);
+	zassert_not_null(strstr(payload, "\"timestamp\":100"), NULL);
+	zassert_ok(aitsm_data_transmission_commit(1), NULL);
+	zassert_true(aitsm_data_transmission_has_capacity(), NULL);
+	sample.timestamp = 999;
+	zassert_ok(aitsm_data_transmission_add(&sample), NULL);
+	zassert_ok(aitsm_data_transmission_format(payload, sizeof(payload), &count), NULL);
+	zassert_is_null(strstr(payload, "\"timestamp\":100"), NULL);
+	zassert_not_null(strstr(payload, "\"timestamp\":999"), NULL);
+	zassert_equal(count, TEST_MAX_MEASUREMENTS, NULL);
+}

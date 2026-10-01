@@ -5,7 +5,7 @@
 Controlleren starter straks connect ved LTE-registrering. Ved connect-fejl
 eller MQTT-disconnect genforsøger den efter 5, 10, 20, 40 og højst 60 sekunder,
 så længe LTE er oppe. En accepteret CONNACK nulstiller backoff. LTE-tab
-annullerer retry-timeren og stopper måleservicen; en ny LTE-registrering
+annullerer retry-timeren og stopper afsendelse; en ny LTE-registrering
 starter et forsøg med det samme. Alle netværkskald udføres på køen fra #75.
 
 ERROR og DISCONNECTED fra samme forsøg planlægger kun én retry og flytter
@@ -79,7 +79,8 @@ ignorerede `build/`-mappe. Testcase 3 i #12 består nu.
 
 ## Resterende fund
 
-Måleservicen stopper stadig under MQTT-udfald (#77). PUBACK bekræfter
+Efter #77 fortsætter måleservicen under MQTT/LTE-udfald med afgrænset RAM-buffer;
+se [beslutning og validering](maalinger-under-udfald.md). PUBACK bekræfter
 brokerens modtagelse, ikke lagring i QuestDB; ingest-udfald kan derfor stadig
 tabe data (#81). LTE-aware LED-status og bevaret fejlstatus forbedrer #82,
 som fortsat kræver den samlede accepttest. Dublet- og payloadgrænseproblemerne

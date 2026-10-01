@@ -19,6 +19,8 @@ Denne mappe indeholder projektdokumentation, kravspecifikationer og tekniske ref
 
 - [MQTT/QuestDB-opsætning og deduplikering (issue #78)](../cloud/mqtt/README.md)
 
+- [Målinger under MQTT-udfald (issue #77)](maalinger-under-udfald.md)
+
 ## Referencefiler
 
 - [UCL/Micro Technic-projektspecifikationer](references/requirements/ucl-mt-project-requirements-2026-08-26.pdf)
