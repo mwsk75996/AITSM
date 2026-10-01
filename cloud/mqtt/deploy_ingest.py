@@ -73,10 +73,20 @@ def deploy():
     print("Ingest opdateret og QoS 1-abonnement etableret; miljø og øvrige services uændrede", flush=True)
 
 
+def inspect():
+    _, target = service_command()
+    print(f"Ingest-script: {target}; parent writable={os.access(target.parent, os.W_OK)}", flush=True)
+    subprocess.run(["sudo", "-n", "-l"], check=False)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--verify-outage", action="store_true")
+    parser.add_argument("--inspect", action="store_true", help="Read deployment permissions without changing files or services")
     args = parser.parse_args()
+    if args.inspect:
+        inspect()
+        raise SystemExit(0)
     deploy()
     if args.verify_outage:
         from verify_ingest_outage import verify
