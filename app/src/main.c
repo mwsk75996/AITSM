@@ -41,6 +41,12 @@ int main(void)
 		return err;
 	}
 
+	err = aitsm_measurement_service_start();
+	if (err < 0) {
+		LOG_ERR("Kunne ikke starte måleservicen: %d", err);
+		return err;
+	}
+
 	while (true) {
 		k_sleep(K_FOREVER);
 	}

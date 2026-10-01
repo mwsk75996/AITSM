@@ -13,7 +13,7 @@ west twister -p thingy91x/nrf9151/ns -T tests
 GitHub Actions-workflowet [`Tests`](../.github/workflows/tests.yml) kører automatisk på PR'er mod `main` og push til `main`. Det kan også startes manuelt:
 
 - `MQTT-ingest (pytest)`: ingest-tests med Python 3.12.
-- `Firmware (Twister)`: `data_transmission` (batch og single), `led_status`, `mqtt_client`, `mqtt_reconnect` og `app_controller` på `native_sim/native/64`, med Nordic-toolchainen til NCS v3.4.0 og Zephyr fra `ncs-v3.4.0`.
+- `Firmware (Twister)`: `data_transmission` (batch og single), `led_status`, `mqtt_client`, `mqtt_reconnect`, `app_controller` og `measurement_service` på `native_sim/native/64`, med Nordic-toolchainen til NCS v3.4.0 og Zephyr fra `ncs-v3.4.0`.
 
 Testresultater og logs gemmes som Actions-artifacts, også hvis tests fejler. Workflowet kræver ingen credentials, broker, QuestDB eller hardware. `nb_iot_config` er en separat build-only-test til Thingy-boardet og køres manuelt med kommandoen ovenfor.
 
@@ -89,6 +89,20 @@ afvisning af sen CONNACK og genforsøg efter køafvisning.
 
 ```bash
 west twister -p native_sim/native/64 -T tests/mqtt_reconnect -T tests/app_controller
+```
+
+## `measurement_service/`
+
+Native tests af den rigtige måleservice og RAM-buffer med fake sensor- og
+MQTT-API'er og rigtige Zephyr-timere. Kører både batch og single. Verificerer
+målinger uden MQTT, dræn ved reconnect, fuld buffer uden ubrugelige
+sensorlæsninger, tabstæller, fortsat indsamling under afbrud, kvittering af
+kun den sendte del og afgrænsede publish-genforsøg. Sensorfejl/ugyldig tid
+må ikke lægge en måling i buffer. Hardwarelæsningerne ligger særskilt i
+`measurement_source.c`, som medtages i det rigtige Thingy-build.
+
+```bash
+west twister -p native_sim/native/64 -T tests/measurement_service
 ```
 
 ## `cloud/mqtt/tests/`

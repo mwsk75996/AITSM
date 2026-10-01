@@ -125,6 +125,17 @@ int aitsm_data_transmission_add(const struct aitsm_measurement *measurement)
 	return 0;
 }
 
+bool aitsm_data_transmission_has_capacity(void)
+{
+	if (!initialized) {
+		return false;
+	}
+	k_mutex_lock(&measurement_mutex, K_FOREVER);
+	bool available = measurement_count < ARRAY_SIZE(measurement_buffer);
+	k_mutex_unlock(&measurement_mutex);
+	return available;
+}
+
 bool aitsm_data_transmission_should_flush(int64_t now)
 {
 	bool flush;
@@ -138,9 +149,9 @@ bool aitsm_data_transmission_should_flush(int64_t now)
 #if defined(CONFIG_AITSM_TRANSMISSION_SINGLE)
 	flush = measurement_count > 0;
 #else
-	flush = measurement_count >= ARRAY_SIZE(measurement_buffer) ||
+	flush = measurement_count > 0 && (measurement_count >= ARRAY_SIZE(measurement_buffer) ||
 		(now >= first_measurement_timestamp &&
-		 now - first_measurement_timestamp >= CONFIG_AITSM_BATCH_INTERVAL_SECONDS);
+		 now - first_measurement_timestamp >= CONFIG_AITSM_BATCH_INTERVAL_SECONDS));
 #endif
 
 	k_mutex_unlock(&measurement_mutex);

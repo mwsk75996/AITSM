@@ -33,6 +33,9 @@ enum aitsm_transmission_mode aitsm_data_transmission_mode(void);
 /** Store a measurement without allocating memory dynamically. */
 int aitsm_data_transmission_add(const struct aitsm_measurement *measurement);
 
+/** True when another reading can be retained without overwriting data. */
+bool aitsm_data_transmission_has_capacity(void);
+
 /** Return whether the current buffer should be sent now. */
 bool aitsm_data_transmission_should_flush(int64_t now);
 

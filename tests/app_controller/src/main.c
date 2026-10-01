@@ -91,7 +91,7 @@ ZTEST(app_controller, test_error_and_disconnect_keep_original_deadline_and_led)
 	zassert_equal(connect_calls, 2, NULL);
 }
 
-ZTEST(app_controller, test_lte_down_cancels_retry_and_stops_measurements)
+ZTEST(app_controller, test_lte_down_cancels_retry_and_notifies_transmission_offline)
 {
 	post(AITSM_APP_EVENT_LTE_CONNECTED);
 	post(AITSM_APP_EVENT_MQTT_CONNECTED);
