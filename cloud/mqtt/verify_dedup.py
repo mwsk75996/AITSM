@@ -14,7 +14,7 @@ import questdb_schema as schema
 
 
 def verify(ingest_file, url):
-    # Only on_message is exercised: these dummy credentials are never used to
+    # Only the write path is exercised: these dummy credentials are never used to
     # connect to MQTT. Existing service credentials need not leave their file.
     os.environ["MQTT_INGEST_USER"] = "verification-unused"
     os.environ["MQTT_INGEST_PASSWORD"] = "verification-unused"
@@ -37,8 +37,11 @@ def verify(ingest_file, url):
     sql = "SELECT timestamp, device_id, temperature, battery FROM sensor_readings WHERE " + keys + " ORDER BY timestamp, device_id"
     before = schema.query(sql, url)
     message = SimpleNamespace(topic="aitsm/verification/telemetry", payload=json.dumps({"readings": rows}).encode())
-    ingest.on_message(None, None, message)
-    ingest.on_message(None, None, message)
+    # Ingest from before #88 wrote directly in on_message; newer versions
+    # acknowledge from a writer thread and expose the write as store_message.
+    store = getattr(ingest, "store_message", None) or (lambda m: ingest.on_message(None, None, m))
+    store(message)
+    store(message)
     if len(successful_writes) != 2:
         raise RuntimeError("Ingest gennemførte ikke begge HTTP-skrivninger")
     for _ in range(50):

@@ -2,6 +2,7 @@ import json
 import math
 from datetime import datetime, timezone
 from unittest.mock import Mock
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -187,34 +188,130 @@ class TestFirmwarePayloads:
         ]
 
 
-class TestOnMessage:
-    class Message:
-        def __init__(self, payload, topic=TOPIC):
-            self.payload = payload
-            self.topic = topic
+class Message:
+    def __init__(self, payload, topic=TOPIC, mid=7, qos=1):
+        self.payload = payload
+        self.topic = topic
+        self.mid = mid
+        self.qos = qos
 
+
+VALID = json.dumps({"timestamp": UNIX_SECONDS, "battery": 50}).encode()
+VALID_LINE = f"sensor_readings,device_id=thingy91x battery=50.0 {UNIX_NS}\n"
+
+
+def http_error(code):
+    return HTTPError(ingest.QUESTDB_WRITE_URL, code, "fejl", {}, None)
+
+
+class TestStoreMessage:
     def test_valid_message_is_written(self, monkeypatch):
         written = []
         monkeypatch.setattr(ingest, "write_questdb", written.append)
-        raw = json.dumps({"timestamp": UNIX_SECONDS, "battery": 50}).encode()
-        ingest.on_message(None, None, self.Message(raw))
-
-        assert written == [[f"sensor_readings,device_id=thingy91x battery=50.0 {UNIX_NS}\n"]]
+        assert ingest.store_message(Message(VALID)) == [VALID_LINE]
+        assert written == [[VALID_LINE]]
 
     @pytest.mark.parametrize("raw", [b"ikke json", b"[1, 2]", b"\xff", b'{"timestamp": 1}'])
-    def test_invalid_message_is_rejected_without_crash(self, monkeypatch, raw):
+    def test_invalid_message_raises_without_write(self, monkeypatch, raw):
         written = []
         monkeypatch.setattr(ingest, "write_questdb", written.append)
-        ingest.on_message(None, None, self.Message(raw))
+        with pytest.raises(ValueError):
+            ingest.store_message(Message(raw))
         assert written == []
 
-    def test_questdb_error_does_not_crash(self, monkeypatch):
-        def fail(lines):
-            raise OSError("QuestDB nede")
 
-        monkeypatch.setattr(ingest, "write_questdb", fail)
-        raw = json.dumps({"timestamp": UNIX_SECONDS, "battery": 50}).encode()
-        ingest.on_message(None, None, self.Message(raw))
+class TestDeliveryWorker:
+    def worker(self, monkeypatch, outcomes):
+        """Worker whose QuestDB writes follow outcomes: None succeeds, else raised."""
+        writes, sleeps = [], []
+        def write(lines):
+            writes.append(lines)
+            outcome = outcomes.pop(0) if outcomes else None
+            if outcome is not None:
+                raise outcome
+        monkeypatch.setattr(ingest, "write_questdb", write)
+        worker = ingest.DeliveryWorker(Mock(), sleep=sleeps.append)
+        return worker, writes, sleeps
+
+    def test_ack_only_after_successful_write(self, monkeypatch):
+        worker, writes, _ = self.worker(monkeypatch, [])
+        worker.client.ack.side_effect = lambda mid, qos: writes.append("ack")
+        worker.process(0, Message(VALID, mid=12))
+        assert writes == [[VALID_LINE], "ack"]
+        worker.client.ack.assert_called_once_with(12, 1)
+
+    @pytest.mark.parametrize("raw", [b"ikke json", b"[1, 2]", b"\xff", b'{"timestamp": 1}'])
+    def test_invalid_payload_is_acked_without_write_or_retry(self, monkeypatch, raw):
+        worker, writes, sleeps = self.worker(monkeypatch, [])
+        worker.process(0, Message(raw))
+        assert writes == [] and sleeps == []
+        worker.client.ack.assert_called_once_with(7, 1)
+
+    def test_rows_rejected_by_questdb_are_acked_without_retry(self, monkeypatch):
+        worker, writes, sleeps = self.worker(monkeypatch, [http_error(400)])
+        worker.process(0, Message(VALID))
+        assert len(writes) == 1 and sleeps == []
+        worker.client.ack.assert_called_once_with(7, 1)
+
+    @pytest.mark.parametrize("error", [
+        URLError(ConnectionRefusedError("nede")), TimeoutError("timeout"),
+        OSError("nulstillet"), http_error(503), http_error(500), RuntimeError("HTTP 204"),
+    ])
+    def test_temporary_errors_retry_same_lines_before_ack(self, monkeypatch, error):
+        worker, writes, sleeps = self.worker(monkeypatch, [error, error])
+        worker.client.ack.side_effect = lambda mid, qos: writes.append("ack")
+        worker.process(0, Message(VALID))
+        assert writes == [[VALID_LINE]] * 3 + ["ack"]
+        assert sleeps == [1, 2]
+
+    def test_backoff_is_capped(self, monkeypatch):
+        worker, writes, sleeps = self.worker(monkeypatch, [OSError("nede")] * 8)
+        worker.process(0, Message(VALID))
+        assert sleeps == [1, 2, 4, 8, 16, 30, 30, 30]
+        worker.client.ack.assert_called_once()
+
+    def test_lost_connection_stops_retry_without_ack(self, monkeypatch):
+        worker, writes, sleeps = self.worker(monkeypatch, [OSError("nede")] * 3)
+        worker.sleep = lambda delay: worker.connection_lost()
+        worker.process(0, Message(VALID))
+        assert len(writes) == 1
+        worker.client.ack.assert_not_called()
+
+    def test_write_finished_after_reconnect_is_not_acked(self, monkeypatch):
+        worker, _, _ = self.worker(monkeypatch, [])
+        worker.connection_lost()
+        worker.process(0, Message(VALID))
+        worker.client.ack.assert_not_called()
+
+    def test_connection_lost_drops_queued_deliveries(self, monkeypatch):
+        worker, _, _ = self.worker(monkeypatch, [])
+        worker.submit(Message(VALID, mid=1))
+        worker.submit(Message(VALID, mid=2))
+        worker.connection_lost()
+        worker.submit(Message(VALID, mid=3))
+        connection, message = worker.queue.get_nowait()
+        assert (connection, message.mid) == (1, 3)
+        assert worker.queue.empty()
+
+    def test_full_queue_leaves_message_unacked(self, monkeypatch, caplog):
+        worker, _, _ = self.worker(monkeypatch, [])
+        for mid in range(ingest.MQTT_RECEIVE_MAXIMUM + 1):
+            worker.submit(Message(VALID, mid=mid))
+        assert worker.queue.qsize() == ingest.MQTT_RECEIVE_MAXIMUM
+        assert "unacknowledged" in caplog.text
+        worker.client.ack.assert_not_called()
+
+    def test_on_message_only_queues(self, monkeypatch):
+        worker, writes, _ = self.worker(monkeypatch, [])
+        ingest.on_message(worker.client, worker, Message(VALID))
+        assert writes == [] and worker.queue.qsize() == 1
+        worker.client.ack.assert_not_called()
+
+    def test_on_disconnect_forgets_queued_deliveries(self, monkeypatch):
+        worker, _, _ = self.worker(monkeypatch, [])
+        ingest.on_message(worker.client, worker, Message(VALID))
+        ingest.on_disconnect(worker.client, worker, 7)
+        assert worker.queue.empty() and worker.connection == 1
 
 
 class TestPersistentSession:
@@ -222,20 +319,28 @@ class TestPersistentSession:
         client = Mock()
         factory = Mock(return_value=client)
         monkeypatch.setattr(ingest.mqtt, "Client", factory)
+        run = Mock()
+        monkeypatch.setattr(ingest.DeliveryWorker, "run", run)
         ingest.main()
-        factory.assert_called_once_with(client_id="projekt-c-questdb-ingest", protocol=ingest.mqtt.MQTTv5)
+        factory.assert_called_once_with(client_id="projekt-c-questdb-ingest", protocol=ingest.mqtt.MQTTv5,
+                                        manual_ack=True)
         client.username_pw_set.assert_called_once_with(ingest.MQTT_USER, ingest.MQTT_PASSWORD)
         client.reconnect_delay_set.assert_called_once_with(min_delay=2, max_delay=60)
         assert client.on_connect is ingest.on_connect
         assert client.on_subscribe is ingest.on_subscribe
         assert client.on_message is ingest.on_message
+        assert client.on_disconnect is ingest.on_disconnect
+        worker = client.user_data_set.call_args.args[0]
+        assert isinstance(worker, ingest.DeliveryWorker) and worker.client is client
         args, kwargs = client.connect.call_args
         assert args == (ingest.MQTT_HOST, ingest.MQTT_PORT)
         assert kwargs["keepalive"] == 60
         assert kwargs["clean_start"] is False
         assert kwargs["properties"].packetType == PacketTypes.CONNECT
         assert kwargs["properties"].SessionExpiryInterval == 86400
-        client.loop_forever.assert_called_once_with()
+        assert kwargs["properties"].ReceiveMaximum == ingest.MQTT_RECEIVE_MAXIMUM
+        client.loop_start.assert_called_once_with()
+        run.assert_called_once_with()
 
     @pytest.mark.parametrize("session_present", [False, True])
     def test_new_and_resumed_sessions_subscribe_with_qos_one(self, session_present):

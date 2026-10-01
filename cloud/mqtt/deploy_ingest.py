@@ -10,6 +10,13 @@ import time
 import os
 
 SERVICE = "projekt-c-ingest"
+# Fails on Paho before 2.0, which cannot postpone PUBACK until QuestDB has the rows.
+PAHO_CHECK = ("import paho.mqtt, paho.mqtt.client as mqtt; "
+              "from paho.mqtt.packettypes import PacketTypes; "
+              "from paho.mqtt.properties import Properties; "
+              "p=Properties(PacketTypes.CONNECT); p.SessionExpiryInterval=86400; p.ReceiveMaximum=10; "
+              "mqtt.Client(protocol=mqtt.MQTTv5, manual_ack=True); "
+              "print('paho-mqtt', paho.mqtt.__version__, 'understøtter manuel ACK')")
 
 
 def service_command():
@@ -50,9 +57,7 @@ def deploy(source=None):
     interpreter, target = service_command()
     # Check the service's existing interpreter and Paho installation; no
     # environment files or credentials need to be read or replaced.
-    subprocess.run([interpreter, "-c", "from paho.mqtt.packettypes import PacketTypes; "
-                    "from paho.mqtt.properties import Properties; "
-                    "p=Properties(PacketTypes.CONNECT); p.SessionExpiryInterval=86400"], check=True)
+    subprocess.run([interpreter, "-c", PAHO_CHECK], check=True)
     content = (source or Path(__file__).with_name("ingest.py")).read_bytes()
     compile(content, str(target), "exec")
     previous = target.read_bytes()
@@ -74,8 +79,9 @@ def deploy(source=None):
 
 
 def inspect():
-    _, target = service_command()
+    interpreter, target = service_command()
     print(f"Ingest-script: {target}; parent writable={os.access(target.parent, os.W_OK)}", flush=True)
+    subprocess.run([interpreter, "-c", PAHO_CHECK], check=False)
     subprocess.run(["sudo", "-n", "-l"], check=False)
 
 

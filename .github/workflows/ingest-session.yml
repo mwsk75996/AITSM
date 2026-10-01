@@ -53,11 +53,13 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Test leveringer under stoppet ingest
+      - name: Test leveringer under stoppet ingest og QuestDB-skrivefejl
         env:
           QUESTDB_INTEGRATION_URL: http://127.0.0.1:9000
           MQTT_INTEGRATION_HOST: 127.0.0.1
-        run: python -m pytest cloud/mqtt/tests/test_ingest.py cloud/mqtt/tests/test_mqtt_session_integration.py
+        run: |
+          python -m pytest cloud/mqtt/tests/test_ingest.py cloud/mqtt/tests/test_mqtt_session_integration.py \
+            cloud/mqtt/tests/test_questdb_outage_integration.py
       - name: Fjern testbroker
         if: always()
         run: docker rm -f aitsm-session-broker
