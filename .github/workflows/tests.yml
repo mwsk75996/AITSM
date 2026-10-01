@@ -21,10 +21,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Hent repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Installér Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: pip
@@ -38,7 +38,7 @@ jobs:
 
       - name: Gem testresultater
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pytest-results
           path: pytest-results.xml
@@ -56,7 +56,7 @@ jobs:
         shell: bash
     steps:
       - name: Hent repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Installér native buildværktøjer
         run: |
@@ -80,7 +80,7 @@ jobs:
 
       - name: Gem testresultater og logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: twister-results
           path: |
