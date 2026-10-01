@@ -70,4 +70,3 @@ int aitsm_measurement_read(struct aitsm_measurement *measurement)
 
 	return 0;
 }
-
