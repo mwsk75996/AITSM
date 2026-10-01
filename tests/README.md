@@ -84,7 +84,7 @@ west twister -p native_sim/native/64 -T tests/mqtt_client
 annullering ved LTE-tab samt dublerede events. `app_controller` tester den
 rigtige controller med fake MQTT-, LED- og måleservice-API'er og rigtige
 Zephyr-workqueue-timere (1–2 s). Den verificerer genforsøg uden et nyt LTE-event,
-uændret deadline ved ERROR + DISCONNECTED, stop af målinger ved LTE-tab,
+uændret deadline ved ERROR + DISCONNECTED, underretning af måleservicen om MQTT/LTE-tab,
 afvisning af sen CONNACK og genforsøg efter køafvisning.
 
 ```bash

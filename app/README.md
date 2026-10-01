@@ -65,7 +65,7 @@ Kconfig-indstilling i `prj.conf`.
 - `src/mqtt_reconnect.c` styrer reconnect og eksponentiel backoff.
 - `src/network.c` initialiserer modemmet, starter LTE-forbindelsen og reagerer på
   ændringer i netværksregistreringen.
-- `src/main.c` initialiserer LED- og netværksmodulerne.
+- `src/main.c` initialiserer modulerne og starter måleplanlægning efter modemmet.
 
 ## Tråd- og eventstruktur
 
