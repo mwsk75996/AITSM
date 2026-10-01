@@ -13,7 +13,7 @@ west twister -p thingy91x/nrf9151/ns -T tests
 GitHub Actions-workflowet [`Tests`](../.github/workflows/tests.yml) kører automatisk på PR'er mod `main` og push til `main`. Det kan også startes manuelt:
 
 - `MQTT-ingest (pytest)`: ingest-tests med Python 3.12.
-- `Firmware (Twister)`: `data_transmission` (batch og single) samt `led_status` på `native_sim/native/64`, med Nordic-toolchainen til NCS v3.4.0 og Zephyr fra `ncs-v3.4.0`.
+- `Firmware (Twister)`: `data_transmission` (batch og single), `led_status` og `mqtt_client` på `native_sim/native/64`, med Nordic-toolchainen til NCS v3.4.0 og Zephyr fra `ncs-v3.4.0`.
 
 Testresultater og logs gemmes som Actions-artifacts, også hvis tests fejler. Workflowet kræver ingen credentials, broker, QuestDB eller hardware. `nb_iot_config` er en separat build-only-test til Thingy-boardet og køres manuelt med kommandoen ovenfor.
 
@@ -67,6 +67,14 @@ På værter uden 32-bit host-headere kan den 64-bit variant bruges i stedet:
 
 ```bash
 west twister -p native_sim/native/64 -T tests/led_status
+```
+
+## `mqtt_client/`
+
+Native tests af den rigtige `mqtt_client.c` med en kontrollerbar fake af NCS MQTT-helperen. Tester at systemworkqueue fortsat kører, mens connect eller publish blokerer, at payloaden kopieres og ikke kan overskrives af et nyt publish, og at afsendelsesfejl og PUBACK rapporteres som app-events. Testcredentials er kun dummyværdier til fake-backenden.
+
+```bash
+west twister -p native_sim/native/64 -T tests/mqtt_client
 ```
 
 ## `cloud/mqtt/tests/`

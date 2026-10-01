@@ -138,6 +138,12 @@ Fast øvre grænse for antallet af målinger i bufferens batch. Standardværdien
 Fast maksimal payload-størrelse på 2048 bytes. Grænsen forhindrer ukontrolleret
 hukommelsesforbrug og giver plads til at skifte serializer senere.
 
+## AITSM MQTT-worker (#75)
+
+`CONFIG_AITSM_MQTT_WORKQUEUE_STACK_SIZE` reserverer 4096 bytes til den dedikerede MQTT-workqueue. `CONFIG_AITSM_MQTT_WORKQUEUE_PRIORITY` er som standard 5 (preemptiv), så blokerende DNS-, TCP-, TLS- og publish-kald ikke optager systemworkqueue. Begge kan ændres i et overlay; stacken er begrænset til 2048–16384 bytes og prioriteten til 0–14.
+
+Publish flyttes også: NCS' `mqtt_helper_publish()` kalder Zephyrs synkrone `mqtt_publish()`, som tager klientens mutex og skriver til socketten. Workeren ejer en separat payloadbuffer og accepterer højst ét ventende publish. Afsendelsesfejl og PUBACK sendes tilbage som app-events. Måleservicens tilstand og app-events behandles fortsat på systemworkqueue.
+
 ## AITSM logging
 
 ### `CONFIG_AITSM_LOG_LEVEL`

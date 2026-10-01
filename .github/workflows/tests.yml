@@ -75,7 +75,7 @@ jobs:
         run: |
           python "$ZEPHYR_BASE/scripts/twister" \
             -p native_sim/native/64 \
-            -T tests/data_transmission -T tests/led_status \
+            -T tests/data_transmission -T tests/led_status -T tests/mqtt_client \
             --outdir twister-out --inline-logs
 
       - name: Gem testresultater og logs

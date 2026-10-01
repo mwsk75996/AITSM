@@ -70,9 +70,16 @@ Kconfig-indstilling i `prj.conf`.
 LTE- og MQTT-bibliotekerne arbejder asynkront. Deres callbacks udfører derfor
 kun let behandling og lægger events i applikationslogikkens message queue.
 Events behandles i Zephyrs system-workqueue, som er en separat Zephyr-
-trådkontekst. Den håndterer forbindelsesstatus og starter MQTT efter en
-vellykket LTE-registrering. På den måde deles callback-data ikke direkte
-mellem modulerne.
+trådkontekst. Den håndterer forbindelsesstatus og lægger MQTT-connect i en
+dedikeret, preemptiv MQTT-workqueue efter LTE-registrering. DNS, TCP, TLS og
+publish kan dermed blokere uden at forsinke app-events og måleservicens
+arbejde på systemworkqueue. Workeren har som standard 4096 bytes stack og
+prioritet 5; se [`KCONFIG.md`](KCONFIG.md).
+
+Publish kopierer payloaden til MQTT-workerens egen buffer, så måleservicen
+kan genbruge sin buffer uden at ændre en igangværende socket-skrivning. Der
+accepteres højst ét ventende publish. Queue-accept er ikke en leveringskvittering:
+afsendelsesfejl og brokerens PUBACK returneres som app-events.
 
 Afviste eller afbrudte MQTT-forbindelser, helper-fejl og publish-resultater
 følger samme event-flow og logges centralt af applikationscontrolleren.

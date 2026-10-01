@@ -31,6 +31,7 @@ static void handle_event(const struct aitsm_app_event *event)
 		(void)aitsm_mqtt_connect();
 		break;
 	case AITSM_APP_EVENT_LTE_DISCONNECTED:
+		LOG_INF("LTE-afbrudt event behandlet: %d", event->value);
 		(void)led_status_set(LED_STATUS_DISCONNECTED);
 		break;
 	case AITSM_APP_EVENT_MQTT_CONNECTED:

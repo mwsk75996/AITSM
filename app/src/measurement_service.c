@@ -25,6 +25,10 @@ static const struct device *const battery_device =
 	DEVICE_DT_GET(DT_NODELABEL(npm1300_charger));
 
 static char measurement_payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE];
+/* After initialization, these variables are accessed only on the system
+ * workqueue: measurement work and app events. MQTT worker/poll callbacks
+ * post events instead of touching this state.
+ */
 static size_t pending_measurement_count;
 static bool publish_in_flight;
 static bool service_running;
@@ -130,7 +134,7 @@ static int publish_buffer(void)
 
 	pending_measurement_count = formatted_count;
 	publish_in_flight = true;
-	LOG_INF("Målepayload sendt; afventer MQTT-ack for %u måling(er)",
+	LOG_INF("Målepayload lagt i MQTT-kø; afventer ack for %u måling(er)",
 		formatted_count);
 	return 0;
 }
