@@ -1,0 +1,99 @@
+name: Vedvarende ingest-session
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [cloud/mqtt/**, .github/workflows/ingest-session.yml]
+  push:
+    branches: [main]
+    paths: [cloud/mqtt/ingest.py, cloud/mqtt/deploy_ingest.py, cloud/mqtt/verify_ingest_outage.py, .github/workflows/ingest-session.yml]
+  workflow_dispatch:
+    inputs:
+      verify_outage:
+        description: 'Stop ingest i seks minutter og kontrollér Thingy-målingerne bagefter'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ingest-session
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    name: Ingest-genstart med rigtig MQTT og QuestDB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      questdb:
+        image: questdb/questdb@sha256:67eaed863ebb2383227919ea9a5499a4a39ceca3862c20b974c84a10e11cdf89
+        ports: ['9000:9000']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Start isoleret testbroker
+        run: |
+          docker run -d --name aitsm-session-broker -p 1883:1883 \
+            -v "$GITHUB_WORKSPACE/cloud/mqtt/tests/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+            eclipse-mosquitto@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
+      - name: Installér testafhængigheder
+        run: python -m pip install -r cloud/mqtt/requirements-dev.txt
+      - name: Vent på testdatabase
+        run: |
+          for attempt in {1..30}; do
+            curl --fail --silent 'http://127.0.0.1:9000/exec?query=select%201' >/dev/null && exit 0
+            sleep 1
+          done
+          exit 1
+      - name: Test leveringer under stoppet ingest
+        env:
+          QUESTDB_INTEGRATION_URL: http://127.0.0.1:9000
+          MQTT_INTEGRATION_HOST: 127.0.0.1
+        run: python -m pytest cloud/mqtt/tests/test_ingest.py cloud/mqtt/tests/test_mqtt_session_integration.py
+      - name: Fjern testbroker
+        if: always()
+        run: docker rm -f aitsm-session-broker
+
+  deploy:
+    name: Deploy ingest og valgfri udfaldstest
+    needs: integration
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Konfigurér SSH fra GitHub Secrets
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          test -n "$VPS_SSH_KEY"
+          test -n "$VPS_KNOWN_HOSTS"
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/deploy_key" "$HOME/.ssh/known_hosts"
+      - name: Installér kun ingest og verificér enhedsdata efter udfald
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VERIFY_OUTAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_outage }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_HOST"
+          test -n "$VPS_USER"
+          ssh_options=(-i "$HOME/.ssh/deploy_key" -p "${VPS_PORT:-22}" -o BatchMode=yes -o StrictHostKeyChecking=yes)
+          remote_dir=$(ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" 'mktemp -d /tmp/aitsm-ingest.XXXXXX')
+          [[ "$remote_dir" == /tmp/aitsm-ingest.* ]]
+          trap 'ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" "rm -rf -- $remote_dir"' EXIT
+          tar -C cloud/mqtt -czf - ingest.py deploy_ingest.py verify_ingest_outage.py questdb_schema.py | \
+            ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" "tar -xzf - -C $remote_dir"
+          verify_arg=""
+          if [ "$VERIFY_OUTAGE" = true ]; then verify_arg="--verify-outage"; fi
+          ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" \
+            "if [ \$(id -u) = 0 ]; then python3 $remote_dir/deploy_ingest.py $verify_arg; else sudo -n python3 $remote_dir/deploy_ingest.py $verify_arg; fi"

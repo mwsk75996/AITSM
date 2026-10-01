@@ -1,10 +1,12 @@
 import json
 import math
 from datetime import datetime, timezone
+from unittest.mock import Mock
 
 import pytest
 
 import ingest
+from paho.mqtt.packettypes import PacketTypes
 
 TOPIC = "aitsm/thingy91x/telemetry"
 # 2026-09-23T06:00:00Z
@@ -196,6 +198,7 @@ class TestOnMessage:
         monkeypatch.setattr(ingest, "write_questdb", written.append)
         raw = json.dumps({"timestamp": UNIX_SECONDS, "battery": 50}).encode()
         ingest.on_message(None, None, self.Message(raw))
+
         assert written == [[f"sensor_readings,device_id=thingy91x battery=50.0 {UNIX_NS}\n"]]
 
     @pytest.mark.parametrize("raw", [b"ikke json", b"[1, 2]", b"\xff", b'{"timestamp": 1}'])
@@ -212,3 +215,36 @@ class TestOnMessage:
         monkeypatch.setattr(ingest, "write_questdb", fail)
         raw = json.dumps({"timestamp": UNIX_SECONDS, "battery": 50}).encode()
         ingest.on_message(None, None, self.Message(raw))
+
+
+class TestPersistentSession:
+    def test_main_uses_fixed_id_and_persistent_connect(self, monkeypatch):
+        client = Mock()
+        factory = Mock(return_value=client)
+        monkeypatch.setattr(ingest.mqtt, "Client", factory)
+        ingest.main()
+        factory.assert_called_once_with(client_id="projekt-c-questdb-ingest", protocol=ingest.mqtt.MQTTv5)
+        client.username_pw_set.assert_called_once_with(ingest.MQTT_USER, ingest.MQTT_PASSWORD)
+        client.reconnect_delay_set.assert_called_once_with(min_delay=2, max_delay=60)
+        assert client.on_connect is ingest.on_connect
+        assert client.on_subscribe is ingest.on_subscribe
+        assert client.on_message is ingest.on_message
+        args, kwargs = client.connect.call_args
+        assert args == (ingest.MQTT_HOST, ingest.MQTT_PORT)
+        assert kwargs["keepalive"] == 60
+        assert kwargs["clean_start"] is False
+        assert kwargs["properties"].packetType == PacketTypes.CONNECT
+        assert kwargs["properties"].SessionExpiryInterval == 86400
+        client.loop_forever.assert_called_once_with()
+
+    @pytest.mark.parametrize("session_present", [False, True])
+    def test_new_and_resumed_sessions_subscribe_with_qos_one(self, session_present):
+        client = Mock()
+        client.subscribe.return_value = (0, 1)
+        ingest.on_connect(client, None, {"session present": session_present}, 0)
+        client.subscribe.assert_called_once_with(ingest.MQTT_TOPIC, qos=1)
+
+    def test_refused_connection_does_not_subscribe(self):
+        client = Mock()
+        ingest.on_connect(client, None, {}, 5)
+        client.subscribe.assert_not_called()

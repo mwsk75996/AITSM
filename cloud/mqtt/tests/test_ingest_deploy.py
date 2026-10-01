@@ -1,0 +1,88 @@
+from datetime import datetime, timezone
+import pytest
+import deploy_ingest as deploy
+import verify_ingest_outage as outage
+
+
+def test_atomic_replace_preserves_permissions(tmp_path):
+    target = tmp_path / "ingest.py"
+    target.write_bytes(b"old")
+    target.chmod(0o640)
+    before = target.stat()
+    deploy.replace_script(target, b"new", before)
+    assert target.read_bytes() == b"new"
+    assert target.stat().st_mode == before.st_mode
+    assert target.stat().st_uid == before.st_uid
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_failed_subscription_rolls_back_and_restarts_original(tmp_path, monkeypatch):
+    target = tmp_path / "old" / "ingest.py"
+    target.parent.mkdir()
+    target.write_text("# original\n")
+    source = tmp_path / "deploy_ingest.py"
+    source.with_name("ingest.py").write_text("# replacement\n")
+    monkeypatch.setattr(deploy, "__file__", str(source))
+    monkeypatch.setattr(deploy, "service_command", lambda: ("python", target))
+    commands = []
+    monkeypatch.setattr(deploy.subprocess, "run", lambda command, **kwargs: commands.append(command))
+    def fail(since):
+        assert target.read_text() == "# replacement\n"
+        raise RuntimeError("Ingen subscription")
+    monkeypatch.setattr(deploy, "wait_for_subscription", fail)
+    with pytest.raises(RuntimeError, match="Ingen subscription"):
+        deploy.deploy()
+    assert target.read_text() == "# original\n"
+    assert commands.count(["systemctl", "restart", deploy.SERVICE]) == 2
+
+
+def test_identical_script_does_not_restart_service(tmp_path, monkeypatch):
+    target = tmp_path / "ingest.py"
+    target.write_text("# identical\n")
+    monkeypatch.setattr(deploy, "__file__", str(tmp_path / "deploy_ingest.py"))
+    monkeypatch.setattr(deploy, "service_command", lambda: ("python", target))
+    commands = []
+    monkeypatch.setattr(deploy.subprocess, "run", lambda command, **kwargs: commands.append(command))
+    deploy.deploy()
+    assert ["systemctl", "is-active", "--quiet", deploy.SERVICE] in commands
+    assert not any(command[1] == "restart" for command in commands)
+
+
+def outage_setup(monkeypatch, query):
+    commands = []
+    monkeypatch.setattr(outage.subprocess, "run", lambda command, **kwargs: commands.append(command))
+    monkeypatch.setattr(outage, "broker_limits", lambda: None)
+    monkeypatch.setattr(outage.time, "sleep", lambda delay: None)
+    monkeypatch.setattr(outage.schema, "query", query)
+    return commands
+
+
+def test_outage_query_failure_still_starts_ingest(monkeypatch):
+    def query(sql):
+        if "LIMIT 1" in sql:
+            return [{"timestamp": datetime.now(timezone.utc).isoformat()}]
+        raise RuntimeError("Database utilgængelig")
+    commands = outage_setup(monkeypatch, query)
+    with pytest.raises(RuntimeError, match="Database utilgængelig"):
+        outage.verify()
+    assert commands[-2:] == [["systemctl", "stop", outage.SERVICE], ["systemctl", "start", outage.SERVICE]]
+
+
+def test_outage_requires_recent_device_data_before_stopping(monkeypatch):
+    commands = outage_setup(monkeypatch, lambda sql: [])
+    with pytest.raises(RuntimeError, match="aktiv Thingy"):
+        outage.verify()
+    assert not any(command[1] == "stop" for command in commands)
+
+
+def test_outage_checks_recovered_batch_cadence(monkeypatch):
+    base = 1790143200
+    def stamp(t):
+        return datetime.fromtimestamp(t, timezone.utc).isoformat()
+    rows = [{"timestamp": stamp(base + (i + 1) * 15), "temperature": 23.0, "battery": 98.0} for i in range(20)]
+    answers = iter([[{"timestamp": stamp(base)}], [], rows])
+    moments = iter([base + 10, base + 10, base + 370])
+    commands = outage_setup(monkeypatch, lambda sql: next(answers))
+    monkeypatch.setattr(outage.time, "time", lambda: next(moments))
+    outage.verify()
+    assert commands[-1] == ["systemctl", "is-active", "--quiet", outage.SERVICE]

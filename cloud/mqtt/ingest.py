@@ -10,12 +10,16 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import paho.mqtt.client as mqtt
+from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.properties import Properties
 
 MQTT_HOST = os.getenv("MQTT_HOST", "127.0.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_USER = os.environ["MQTT_INGEST_USER"]
 MQTT_PASSWORD = os.environ["MQTT_INGEST_PASSWORD"]
 MQTT_TOPIC = os.getenv("MQTT_TOPIC", "aitsm/+/telemetry")
+MQTT_CLIENT_ID = "projekt-c-questdb-ingest"
+MQTT_SESSION_EXPIRY_SECONDS = 86400
 QUESTDB_WRITE_URL = os.getenv("QUESTDB_WRITE_URL", "http://127.0.0.1:9000/write")
 # Only the nRF9151 internal chip temperature and battery level are in scope.
 NUMERIC_FIELDS = ("temperature", "battery")
@@ -135,15 +139,29 @@ def on_message(client, userdata, message):
         logging.warning("Rejected MQTT telemetry on %s: %s", message.topic, error)
 
 
-def main():
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
-    client = mqtt.Client(client_id="projekt-c-questdb-ingest", protocol=mqtt.MQTTv5)
+def create_client():
+    """Keep one broker-side subscription across process restarts."""
+    client = mqtt.Client(client_id=MQTT_CLIENT_ID, protocol=mqtt.MQTTv5)
     client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     client.on_connect = on_connect
     client.on_subscribe = on_subscribe
     client.on_message = on_message
     client.reconnect_delay_set(min_delay=2, max_delay=60)
-    client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
+    return client
+
+
+def connect_client(client):
+    properties = Properties(PacketTypes.CONNECT)
+    properties.SessionExpiryInterval = MQTT_SESSION_EXPIRY_SECONDS
+    # False applies to the first connection too, including a new process.
+    client.connect(MQTT_HOST, MQTT_PORT, keepalive=60,
+                   clean_start=False, properties=properties)
+
+
+def main():
+    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
+    client = create_client()
+    connect_client(client)
     client.loop_forever()
 
 
