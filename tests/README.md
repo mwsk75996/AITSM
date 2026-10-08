@@ -48,9 +48,20 @@ Payload-grænsen (issue #12) er dækket af tre tests:
   `CONFIG_AITSM_TRANSMISSION_PAYLOAD_SIZE`.
 - Ugyldige Kconfig-kombinationer, hvor en fuld batch aldrig kan sendes, afvises
   allerede ved build af et `BUILD_ASSERT` i `data_transmission.c`, f.eks.
-  `-x CONFIG_AITSM_BATCH_MAX_SAMPLES=64` med standardstørrelsen 2048 bytes.
+  `-x CONFIG_AITSM_BATCH_MAX_SAMPLES=32` med standardstørrelsen 2048 bytes.
 
 Testen kan også køres som `native_sim/native/64`.
+
+## `sparkplug/`
+
+Unit tests for `sparkplug.c`: topic-namespace, seq-wrap, NBIRTH (seq 0, bdSeq,
+metric-deklarationer) og NDATA (værdier, millisekund-tidsstempler, historisk-flag).
+Testene afkoder payloaden igen med nanopb i stedet for at sammenligne bytes.
+`data_transmission` tester desuden, at seq kun tælles op ved bekræftet levering.
+
+```bash
+west twister -p native_sim/native/64 -T tests/sparkplug
+```
 
 ## `led_status/`
 

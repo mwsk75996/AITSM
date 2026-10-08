@@ -40,13 +40,17 @@ bool aitsm_data_transmission_has_capacity(void);
 bool aitsm_data_transmission_should_flush(int64_t now);
 
 /**
- * Serialize the current measurements into the transport payload.
+ * Serialize the current measurements into a Sparkplug B NDATA payload.
  *
- * The JSON envelope is deliberately kept behind this API so the serializer can
- * later be replaced by SparkplugB without changing the buffer or MQTT client.
+ * The seq number is advanced by aitsm_data_transmission_commit(), so
+ * formatting the same buffer again after a lost acknowledgement gives the
+ * same seq.
  */
-int aitsm_data_transmission_format(char *buffer, size_t capacity,
+int aitsm_data_transmission_format(uint8_t *buffer, size_t capacity, size_t *length,
 				   size_t *measurement_count);
+
+/** Restart the NDATA seq numbering at 1, as required after an NBIRTH. */
+void aitsm_data_transmission_start_session(void);
 
 /** Remove measurements after their MQTT publish has been acknowledged. */
 int aitsm_data_transmission_commit(size_t measurement_count);

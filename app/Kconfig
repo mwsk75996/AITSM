@@ -35,7 +35,7 @@ config AITSM_BATCH_INTERVAL_SECONDS
 
 config AITSM_BATCH_MAX_SAMPLES
 	int "Maximum measurements per batch"
-	range 1 64
+	range 1 32
 	default 20
 	depends on AITSM_TRANSMISSION_BATCH
 	help
@@ -50,6 +50,23 @@ config AITSM_TRANSMISSION_PAYLOAD_SIZE
 	help
 		Maximum number of bytes reserved for a serialized telemetry
 		payload. The fixed limit prevents unbounded memory use.
+
+endmenu
+
+menu "AITSM SparkplugB"
+
+config AITSM_SPARKPLUG_GROUP_ID
+	string "Sparkplug B group ID"
+	default "aitsm"
+	help
+		Group ID in the topic namespace spBv1.0/<group_id>/<message_type>/<edge_node_id>.
+
+config AITSM_SPARKPLUG_EDGE_NODE_ID
+	string "Sparkplug B edge node ID"
+	default "thingy91x"
+	help
+		Edge node ID in the topic namespace. Also used as the device identity
+		in the cloud.
 
 endmenu
 

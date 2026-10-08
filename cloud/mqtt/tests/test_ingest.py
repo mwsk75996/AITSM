@@ -204,6 +204,85 @@ def http_error(code):
     return HTTPError(ingest.QUESTDB_WRITE_URL, code, "fejl", {}, None)
 
 
+# Payloads produced by the firmware encoder (app/src/sparkplug.c, host build)
+# and checked against the Eclipse Sparkplug B protobuf definition.
+NBIRTH_HEX = (
+    "0880d095ffbc31120b0a0562645365712004580312110a0b74656d70657261747572652009"
+    "3801120d0a0762617474657279200938011800"
+)
+NDATA_BATCH_HEX = (
+    "0898c596ffbc31121d0a0b74656d70657261747572651880d095ffbc3120092801659a99e341"
+    "12190a07626174746572791880d095ffbc312009280165cdccc242121d0a0b74656d70657261"
+    "747572651898c596ffbc3120092801650000a0bf12190a07626174746572791898c596ffbc31"
+    "20092801658fc2c2421807"
+)
+NDATA_SINGLE_HEX = (
+    "0880d095ffbc31121b0a0b74656d70657261747572651880d095ffbc312009659a99e34112"
+    "170a07626174746572791880d095ffbc31200965cdccc2421808"
+)
+NDATA_TOPIC = "spBv1.0/aitsm/NDATA/thingy91x"
+NBIRTH_TOPIC = "spBv1.0/aitsm/NBIRTH/thingy91x"
+FIRST_LINE = "sensor_readings,device_id=thingy91x temperature=28.45,battery=97.4 1700000000000000000\n"
+SECOND_LINE = "sensor_readings,device_id=thingy91x temperature=-1.25,battery=97.38 1700000015000000000\n"
+
+
+class TestSparkplug:
+    def test_single_ndata_gives_one_line_with_edge_node_as_device(self):
+        assert ingest.build_sparkplug_lines(NDATA_TOPIC, bytes.fromhex(NDATA_SINGLE_HEX)) == [FIRST_LINE]
+
+    def test_batch_ndata_gives_one_line_per_measurement_in_time_order(self):
+        lines = ingest.build_sparkplug_lines(NDATA_TOPIC, bytes.fromhex(NDATA_BATCH_HEX))
+        assert lines == [FIRST_LINE, SECOND_LINE]
+
+    def test_nbirth_stores_nothing(self):
+        assert ingest.build_sparkplug_lines(NBIRTH_TOPIC, bytes.fromhex(NBIRTH_HEX)) == []
+
+    def test_decoded_ndata_fields(self):
+        seq, timestamp, metrics = ingest.decode_sparkplug_payload(bytes.fromhex(NDATA_BATCH_HEX))
+        assert (seq, timestamp, len(metrics)) == (7, 1700000015000, 4)
+        assert metrics[0]["name"] == "temperature" and metrics[0]["timestamp"] == 1700000000000
+
+    def test_decoded_nbirth_bdseq(self):
+        seq, _, metrics = ingest.decode_sparkplug_payload(bytes.fromhex(NBIRTH_HEX))
+        assert seq == 0
+        assert metrics[0]["name"] == "bdSeq" and metrics[0]["value"] == 3
+        assert metrics[1]["is_null"] is True
+
+    @pytest.mark.parametrize("raw", [b"", bytes.fromhex("0880")[:1], bytes.fromhex(NDATA_SINGLE_HEX)[:-3]])
+    def test_empty_or_truncated_payload_is_rejected(self, raw):
+        with pytest.raises(ValueError):
+            ingest.build_sparkplug_lines(NDATA_TOPIC, raw)
+
+    def test_unsupported_message_type_and_bad_topic_are_rejected(self):
+        with pytest.raises(ValueError):
+            ingest.build_sparkplug_lines("spBv1.0/aitsm/NCMD/thingy91x", bytes.fromhex(NDATA_SINGLE_HEX))
+        with pytest.raises(ValueError):
+            ingest.build_sparkplug_lines("spBv1.0/aitsm", bytes.fromhex(NDATA_SINGLE_HEX))
+
+    def test_store_message_writes_sparkplug_readings(self, monkeypatch):
+        written = []
+        monkeypatch.setattr(ingest, "write_questdb", written.append)
+        message = Message(bytes.fromhex(NDATA_BATCH_HEX), topic=NDATA_TOPIC)
+        assert ingest.store_message(message) == [FIRST_LINE, SECOND_LINE]
+        assert written == [[FIRST_LINE, SECOND_LINE]]
+
+    def test_worker_acks_nbirth_without_writing(self, monkeypatch):
+        writes = []
+        monkeypatch.setattr(ingest, "write_questdb", writes.append)
+        worker = ingest.DeliveryWorker(Mock(), sleep=Mock())
+        worker.process(0, Message(bytes.fromhex(NBIRTH_HEX), topic=NBIRTH_TOPIC, mid=3))
+        assert writes == []
+        worker.client.ack.assert_called_once_with(3, 1)
+
+    def test_worker_acks_malformed_sparkplug_payload_without_write(self, monkeypatch):
+        writes = []
+        monkeypatch.setattr(ingest, "write_questdb", writes.append)
+        worker = ingest.DeliveryWorker(Mock(), sleep=Mock())
+        worker.process(0, Message(b"\xff\xff", topic=NDATA_TOPIC, mid=4))
+        assert writes == []
+        worker.client.ack.assert_called_once_with(4, 1)
+
+
 class TestStoreMessage:
     def test_valid_message_is_written(self, monkeypatch):
         written = []
@@ -347,7 +426,7 @@ class TestPersistentSession:
         client = Mock()
         client.subscribe.return_value = (0, 1)
         ingest.on_connect(client, None, {"session present": session_present}, 0)
-        client.subscribe.assert_called_once_with(ingest.MQTT_TOPIC, qos=1)
+        client.subscribe.assert_called_once_with([(topic, 1) for topic in ingest.MQTT_TOPICS])
 
     def test_refused_connection_does_not_subscribe(self):
         client = Mock()

@@ -8,10 +8,12 @@
 #include <measurement_service.h>
 #include <measurement_source.h>
 #include <mqtt_client.h>
+#include <sparkplug.h>
 
 LOG_MODULE_REGISTER(measurement_service, CONFIG_AITSM_LOG_LEVEL);
 
-static char measurement_payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE];
+static uint8_t measurement_payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE];
+#define TOPIC_SIZE 64
 /* State is owned by the system workqueue after initialization. Sampling has
  * its own cadence; MQTT availability only controls transmission.
  */
@@ -19,6 +21,10 @@ static size_t pending_measurement_count;
 static uint32_t pending_publish_token;
 static bool publish_in_flight;
 static bool mqtt_connected;
+/* NBIRTH must be acknowledged before any NDATA. bdSeq counts connections. */
+static bool birth_pending;
+static bool birth_in_flight;
+static uint8_t bd_seq;
 static uint32_t dropped_samples;
 static uint32_t drops_since_log;
 static int64_t last_sample_timestamp;
@@ -40,22 +46,59 @@ static void log_measurement(const struct aitsm_measurement *measurement)
 }
 
 
+static int publish_birth(void)
+{
+	char topic[TOPIC_SIZE];
+	size_t length;
+	int64_t timestamp_ms = 0;
+	int err;
+
+	(void)aitsm_measurement_time_ms(&timestamp_ms);
+	err = aitsm_sparkplug_encode_nbirth(measurement_payload, sizeof(measurement_payload),
+					    &length, (uint64_t)timestamp_ms, bd_seq);
+	if (err == 0) {
+		err = aitsm_sparkplug_topic(topic, sizeof(topic), AITSM_SPARKPLUG_NBIRTH);
+	}
+	if (err != 0) {
+		LOG_ERR("Kunne ikke formatere NBIRTH: %d", err);
+		return err;
+	}
+	err = aitsm_mqtt_publish_payload(topic, measurement_payload, length, &pending_publish_token);
+	if (err != 0) {
+		LOG_WRN("Kunne ikke sende NBIRTH: %d", err);
+		return err;
+	}
+	publish_in_flight = true;
+	birth_in_flight = true;
+	LOG_INF("NBIRTH lagt i MQTT-kø; afventer ack");
+	return 0;
+}
+
 static int publish_buffer(void)
 {
+	char topic[TOPIC_SIZE];
 	size_t formatted_count;
+	size_t length;
 	if (!mqtt_connected || publish_in_flight) {
 		return 0;
 	}
+	if (birth_pending) {
+		return publish_birth();
+	}
 	int err = aitsm_data_transmission_format(measurement_payload,
-					       sizeof(measurement_payload), &formatted_count);
+					       sizeof(measurement_payload), &length,
+					       &formatted_count);
 	if (err != 0) {
 		if (err != -ENODATA) {
 			LOG_ERR("Kunne ikke formatere målepayload: %d", err);
 		}
 		return err;
 	}
-	err = aitsm_mqtt_publish_payload(measurement_payload, strlen(measurement_payload),
-					&pending_publish_token);
+	err = aitsm_sparkplug_topic(topic, sizeof(topic), AITSM_SPARKPLUG_NDATA);
+	if (err == 0) {
+		err = aitsm_mqtt_publish_payload(topic, measurement_payload, length,
+						 &pending_publish_token);
+	}
 	if (err != 0) {
 		LOG_WRN("Kunne ikke sende målepayload: %d", err);
 		return err;
@@ -134,6 +177,9 @@ int aitsm_measurement_service_init(void)
 	pending_measurement_count = 0;
 	pending_publish_token = 0;
 	publish_in_flight = false;
+	birth_pending = false;
+	birth_in_flight = false;
+	bd_seq = 0;
 	mqtt_connected = false;
 	dropped_samples = drops_since_log = 0;
 	last_sample_timestamp = 0;
@@ -153,6 +199,8 @@ uint32_t aitsm_measurement_service_dropped_samples(void)
 void aitsm_measurement_service_mqtt_connected(void)
 {
 	mqtt_connected = true;
+	/* Every connection is a new Sparkplug session: NBIRTH first, then NDATA. */
+	birth_pending = true;
 	/* Drain retained offline data using the connection just established. */
 	request_publish(K_NO_WAIT);
 }
@@ -162,6 +210,9 @@ void aitsm_measurement_service_mqtt_disconnected(void)
 	mqtt_connected = false;
 	(void)k_work_cancel_delayable(&publish_work);
 	publish_in_flight = false;
+	birth_in_flight = false;
+	birth_pending = false;
+	bd_seq = aitsm_sparkplug_next_seq(bd_seq);
 	/* Sampling continues; no retained or in-flight measurements are removed. */
 }
 
@@ -171,6 +222,19 @@ bool aitsm_measurement_service_publish_result(uint32_t token, int result)
 		return false;
 	}
 	publish_in_flight = false;
+	if (birth_in_flight) {
+		birth_in_flight = false;
+		if (result == 0) {
+			birth_pending = false;
+			aitsm_data_transmission_start_session();
+			LOG_INF("NBIRTH bekræftet");
+			request_publish(K_NO_WAIT);
+		} else {
+			LOG_WRN("NBIRTH blev ikke bekræftet: %d", result);
+			request_publish(K_SECONDS(CONFIG_AITSM_MEASUREMENT_INTERVAL_SECONDS));
+		}
+		return true;
+	}
 	if (result == 0) {
 		/* Only the prefix copied into the acknowledged payload is removed;
 		 * readings collected while waiting for PUBACK remain buffered.

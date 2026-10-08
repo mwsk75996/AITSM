@@ -56,7 +56,10 @@ Kconfig-indstilling i `prj.conf`.
 - `include/network.h` deklarerer netværksmodulets API.
 - `src/app_controller.c` er applikationslogikken og dens message queue.
 - `src/data_transmission.c` opbevarer målinger i en fast buffer og formaterer
-  single- eller batch-payloads.
+  dem som SparkplugB NDATA (single eller batch).
+- `src/sparkplug.c` og `include/sparkplug.h` laver SparkplugB-topics og
+  protobuf-payloads (NBIRTH og NDATA) med nanopb. `proto/` indeholder
+  protobuf-definitionen og de genererede nanopb-filer.
 - `src/measurement_service.c` styrer uafhængig måle- og afsendelsesplanlægning.
 - `src/measurement_source.c` læser modemtemperatur, nPM1300-batterispænding
   og UTC-tid.
@@ -125,9 +128,34 @@ Indstillingerne ændres centralt i `prj.conf` eller via et overlay:
 
 Bufferen har fast størrelse og afviser nye målinger, når den er fuld. API'et
 understøtter først at fjerne målinger efter en vellykket MQTT-acknowledgement,
-så afsendelseslaget kan beholde data ved forbindelsesfejl. Den nuværende
-serialisering er et internt JSON-transportformat; SparkplugB-serialiseringen
-kan udskiftes bag `data_transmission`-API'et.
+så afsendelseslaget kan beholde data ved forbindelsesfejl. Payloaden er
+SparkplugB v1.0, se næste afsnit.
+
+## SparkplugB (#66)
+
+Topic-namespace er `spBv1.0/<group_id>/<message_type>/<edge_node_id>`, her
+`spBv1.0/aitsm/NDATA/thingy91x` (gruppe og node kan sættes i Kconfig).
+Thingy:91 X er edge node; der er ikke noget device-niveau under den.
+
+- **NBIRTH** sendes ved hver MQTT-forbindelse og skal være kvitteret (PUBACK),
+  før den første NDATA sendes. Den har seq 0, metric `bdSeq` (tæller
+  forbindelser siden opstart) og deklarerer metrics `temperature` og `battery`
+  uden værdi.
+- **NDATA** har seq 1, 2, ... (wrap efter 255) og metrics `temperature` (°C) og
+  `battery` (%) som Float med målingens tidsstempel i millisekunder (UTC).
+  Batch markeres `is_historical`, fordi målingerne er gemt og sendt senere.
+  Seq tælles først op, når PUBACK er modtaget, så et genforsøg efter tabt
+  PUBACK har samme seq.
+- **NDEATH** er bevidst udeladt: NCS' `mqtt_helper` kan kun sætte et statisk
+  last will som Kconfig-tekst (QoS 0), og en protobuf-payload kan ikke udtrykkes
+  som tekst. Skyen ser derfor en afbrudt enhed som manglende data, ikke som en
+  NDEATH. Ingen NCMD/NDEATH-håndtering er derfor nødvendig i ingest.
+- Protobuf-definitionen er en delmængde af Sparkplug B (samme feltnumre), så
+  alle standard-klienter kan læse beskederne. Se `proto/README.md` for
+  regenerering.
+- `CONFIG_AITSM_TRANSMISSION_PAYLOAD_SIZE` skal kunne rumme en fuld batch
+  (op til ca. 70 bytes pr. måling); et `BUILD_ASSERT` afviser ugyldige
+  kombinationer ved build.
 
 Batteriværdien er i første version et lineært estimat ud fra nPM1300-
 batterispændingen (3,2 V = 0 % og 4,2 V = 100 %). Det er tilstrækkeligt til

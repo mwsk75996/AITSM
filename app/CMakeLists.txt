@@ -36,11 +36,13 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/certs/ca-cert.pem)
 	)
 endif()
 
-target_include_directories(app PRIVATE include ${AITSM_GENERATED_INCLUDE_DIR})
+target_include_directories(app PRIVATE include proto ${AITSM_GENERATED_INCLUDE_DIR})
 target_sources(app PRIVATE
 	src/main.c
 	src/app_controller.c
 	src/data_transmission.c
+	src/sparkplug.c
+	proto/sparkplug_b.pb.c
 	src/measurement_service.c
 	src/measurement_source.c
 	src/network.c

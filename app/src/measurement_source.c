@@ -26,6 +26,11 @@ static uint16_t battery_percent_from_voltage(int64_t voltage_mv)
 			  (BATTERY_FULL_MV - BATTERY_EMPTY_MV));
 }
 
+int aitsm_measurement_time_ms(int64_t *timestamp_ms)
+{
+	return date_time_now(timestamp_ms);
+}
+
 int aitsm_measurement_read(struct aitsm_measurement *measurement)
 {
 	struct sensor_value battery_voltage;
