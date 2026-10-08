@@ -65,8 +65,8 @@ ZTEST(data_transmission, test_measurements_are_formatted_and_committed)
 
 #if defined(CONFIG_AITSM_TRANSMISSION_BATCH)
 	zassert_ok(aitsm_data_transmission_add(&second_measurement), NULL);
-	zassert_false(aitsm_data_transmission_should_flush(399), NULL);
-	zassert_true(aitsm_data_transmission_should_flush(400), NULL);
+	zassert_false(aitsm_data_transmission_should_flush(384), NULL);
+	zassert_true(aitsm_data_transmission_should_flush(385), NULL);
 #else
 	zassert_equal(aitsm_data_transmission_add(&second_measurement), -EBUSY,
 		      NULL);

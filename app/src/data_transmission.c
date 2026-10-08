@@ -124,7 +124,11 @@ bool aitsm_data_transmission_should_flush(int64_t now)
 #else
 	flush = measurement_count > 0 && (measurement_count >= ARRAY_SIZE(measurement_buffer) ||
 		(now >= first_measurement_timestamp &&
-		 now - first_measurement_timestamp >= CONFIG_AITSM_BATCH_INTERVAL_SECONDS));
+		 /* The batch covers the interval: send when the next measurement would
+		  * fall outside it, so 300 s at 15 s gives 20 measurements.
+		  */
+		 now - first_measurement_timestamp + CONFIG_AITSM_MEASUREMENT_INTERVAL_SECONDS >=
+			 CONFIG_AITSM_BATCH_INTERVAL_SECONDS));
 #endif
 
 	k_mutex_unlock(&measurement_mutex);

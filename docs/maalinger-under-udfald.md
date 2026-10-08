@@ -14,8 +14,8 @@ og sensor-/modemlæsninger springes over, når resultatet ikke kan gemmes.
 Det fulde-buffer-forløb logges samlet for at begrænse logarbejdet. Efter ACK
 frigives kun den kvitterede del, og sampling fortsætter på sin eksisterende timer.
 
-Standard: 20 pladser ved 15 s (ca. fem minutters målepladser i en tom buffer).
-Pladsen til et udfald er `(20 - allerede bufferede målinger) × 15 s`.
+Standard: 28 pladser ved 15 s (ca. syv minutters målepladser i en tom buffer).
+Pladsen til et udfald er `(28 - allerede bufferede målinger) × 15 s`. (Testene i dette dokument er kørt med den tidligere standard på 20 pladser.)
 Single har én plads. Kconfig-grænser og worst-case payload er uændrede; #79
 behandler ugyldige buffer/payload-kombinationer. Sensorfejl og ugyldig UTC-tid
 kan også give huller. RAM-data og tabstæller overlever ikke reboot/strømsvigt.

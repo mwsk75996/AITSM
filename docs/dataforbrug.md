@@ -27,7 +27,7 @@ starter efter bekræftet NBIRTH, så forbindelsesopbygningen er målt for sig.
 | --- | --- | --- |
 | `single` | `AITSM_TRANSMISSION_SINGLE` | hver måling (15 s) |
 | `batch1` | batch 60 s, 4 målinger | hvert minut |
-| `batch5` | batch 300 s, 20 målinger (standard) | hver 5. minut |
+| `batch5` | batch 300 s, 20 målinger pr. batch (standard) | hver 5. minut |
 | `batch8` | batch 900 s, 32 målinger, payload 4096 bytes | hver 8. minut (bufferen er fuld) |
 
 En 15-minutters batch kan ikke bygges: den kræver 60 målinger, og 60 × ca. 70
@@ -67,14 +67,34 @@ bufferen): 4 til 8 KB modtaget og 1 KB sendt, én gang pr. forbindelse.
 kan sove imellem. `batch8` giver ingen målbar gevinst, og `single` bruger
 fire gange så meget data.
 
-## Observation: ingen margin i bufferen ved batch 5 minutter
+## Valg: 28 pladser i bufferen
 
-Standarden `AITSM_BATCH_MAX_SAMPLES=20` svarer præcis til en batch (20 × 15 s).
-Ved den sjette batch i `batch5` kom PUBACK ikke inden for 15 sekunder. Bufferen
-var fuld, og målingen 15 sekunder senere blev sprunget over (`Målebuffer fuld`).
-De første fem batches gik uden tab. En forsinket kvittering kan altså koste en
-måling. En større buffer (fx 24 målinger) giver plads til op til ca. to minutters
-forsinkelse uden at ændre sendetidspunktet (batchen sendes stadig efter 300 s).
+Under `batch5` (med 20 pladser) kom PUBACK ved den sjette batch ikke inden for 15
+sekunder. Bufferen var fuld, og den næste måling blev kasseret
+(`Målebuffer fuld`). De første fem batches gik uden tab, men det viste, at 20
+pladser ikke giver nogen margin.
+
+Forklaring på almindeligt dansk:
+
+- Efter en batch er sendt, bliver målingerne i bufferen, til serveren har
+  kvitteret. Først da må de slettes.
+- Der kommer en ny måling hvert 15. sekund, og den skal have en ledig plads
+  imens. Er bufferen fuld, kasseres målingen.
+- Ekstra pladser er derfor tid, vi kan vente på kvitteringen. 8 ekstra pladser ×
+  15 sekunder = 2 minutter.
+- Batchen sendes stadig efter 20 målinger (5 minutter). De 8 ekstra pladser
+  bruges kun, hvis kvitteringen er forsinket.
+- 28 er den største buffer, der kan være i en payload på 2048 bytes
+  (28 × 70 + 16 = 1976 bytes).
+
+Derfor er standarden `AITSM_BATCH_MAX_SAMPLES=28`. For at holde batchen på 20
+målinger sendes den nu, når den *næste* måling ville falde uden for
+batch-intervallet (`now − første + måleinterval ≥ batch-interval`). Med en buffer
+på 28 ville batchen ellers være blevet 21 målinger.
+
+Målingerne ovenfor er lavet med en buffer på 20; batchene var de samme (20
+målinger), så resultaterne gælder fortsat. `scripts/measurement-profiles/batch5.conf`
+bruger nu 28.
 
 ## Begrænsninger
 

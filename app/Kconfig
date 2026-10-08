@@ -36,7 +36,7 @@ config AITSM_BATCH_INTERVAL_SECONDS
 config AITSM_BATCH_MAX_SAMPLES
 	int "Maximum measurements per batch"
 	range 1 32
-	default 20
+	default 28
 	depends on AITSM_TRANSMISSION_BATCH
 	help
 		Fixed upper bound for the in-memory measurement buffer. With the

@@ -131,7 +131,8 @@ Standardværdien er 300 sekunder.
 ### `CONFIG_AITSM_BATCH_MAX_SAMPLES`
 
 Fast øvre grænse for antallet af målinger i bufferens batch. Standardværdien er
-20, hvilket svarer til fem minutter ved et 15-sekunders måleinterval. Maks. 32.
+28: en batch sendes efter 20 målinger (fem minutter ved 15 sekunder), og de 8
+ekstra pladser giver to minutters plads til en forsinket kvittering. Maks. 32.
 
 ### `CONFIG_AITSM_TRANSMISSION_PAYLOAD_SIZE`
 
