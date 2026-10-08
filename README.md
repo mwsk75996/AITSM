@@ -17,7 +17,7 @@ Løsningen skal indsamle data fra Thingy:91 X og sende dem sikkert til en cloud-
 - **Cloud:** MQTT-broker og tidsseriedatabase, eventuelt med dashboard
 - **Data:** `device-id`, `timestamp` og aflæste værdier
 
-Modbus kan anvendes til dataopsamling, hvor det er relevant, men er ikke et specifikt krav for Projekt C.
+Modbus RTU/TCP skal anvendes til dataopsamling (bekræftet af underviser). Undervisningsmaterialet ligger i `docs/modbus/`.
 
 ## Udviklingsmiljø
 
