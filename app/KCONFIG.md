@@ -131,12 +131,21 @@ Standardværdien er 300 sekunder.
 ### `CONFIG_AITSM_BATCH_MAX_SAMPLES`
 
 Fast øvre grænse for antallet af målinger i bufferens batch. Standardværdien er
-20, hvilket svarer til fem minutter ved et 15-sekunders måleinterval.
+20, hvilket svarer til fem minutter ved et 15-sekunders måleinterval. Maks. 32.
 
 ### `CONFIG_AITSM_TRANSMISSION_PAYLOAD_SIZE`
 
 Fast maksimal payload-størrelse på 2048 bytes. Grænsen forhindrer ukontrolleret
-hukommelsesforbrug og giver plads til at skifte serializer senere.
+hukommelsesforbrug. Den skal kunne rumme en fuld SparkplugB NDATA med
+`CONFIG_AITSM_BATCH_MAX_SAMPLES` målinger (ca. 70 bytes pr. måling); et
+`BUILD_ASSERT` afviser ugyldige kombinationer.
+
+## AITSM SparkplugB (#66)
+
+`CONFIG_AITSM_SPARKPLUG_GROUP_ID` (standard `aitsm`) og
+`CONFIG_AITSM_SPARKPLUG_EDGE_NODE_ID` (standard `thingy91x`) indgår i topicet
+`spBv1.0/<group_id>/<message_type>/<edge_node_id>`. `CONFIG_NANOPB=y` er sat i
+`prj.conf` til protobuf-kodningen.
 
 ## AITSM MQTT-worker (#75)
 

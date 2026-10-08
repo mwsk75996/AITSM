@@ -52,6 +52,17 @@ Payload-grænsen (issue #12) er dækket af tre tests:
 
 Testen kan også køres som `native_sim/native/64`.
 
+## `sparkplug/`
+
+Unit tests for `sparkplug.c`: topic-namespace, seq-wrap, NBIRTH (seq 0, bdSeq,
+metric-deklarationer) og NDATA (værdier, millisekund-tidsstempler, historisk-flag).
+Testene afkoder payloaden igen med nanopb i stedet for at sammenligne bytes.
+`data_transmission` tester desuden, at seq kun tælles op ved bekræftet levering.
+
+```bash
+west twister -p native_sim/native/64 -T tests/sparkplug
+```
+
 ## `led_status/`
 
 Native Zephyr-test uden hardware, der verificerer farve- og blinkmønstrene for

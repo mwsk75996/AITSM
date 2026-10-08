@@ -1,7 +1,13 @@
 # MQTT til QuestDB
 
-`ingest.py` modtager single- og batch-JSON fra MQTT med QoS 1 og skriver
-`temperature` og `battery` til `sensor_readings` over ILP/HTTP. Credentials
+`ingest.py` modtager SparkplugB (NBIRTH og NDATA) fra MQTT med QoS 1 og skriver
+`temperature` og `battery` til `sensor_readings` over ILP/HTTP. Edge node-id
+fra topicet bliver `device_id`; hver måling (metric-timestamp) bliver én række.
+NBIRTH kvitteres uden at gemme noget. Protobuf-payloaden afkodes af en lille
+indbygget afkoder i `ingest.py`, så servicen ikke kræver ekstra pakker.
+Subscriptions er `spBv1.0/+/NBIRTH/+` og `spBv1.0/+/NDATA/+`. Det gamle
+JSON-topic `aitsm/+/telemetry` læses stadig, indtil alle enheder kører den nye
+firmware. Credentials
 kommer fra servicens miljø; de må ikke gemmes i repository'et.
 
 ## Deduplikering (#78)
@@ -121,7 +127,10 @@ desuden ingen listener, så ACL'en var reelt slået fra.
 VPS'en bruger derfor `per_listener_settings false` med `allow_anonymous`,
 `password_file` og `acl_file` angivet én gang; Mosquitto afviser gentagne
 værdier i den tilstand. ACL'en giver `thingy91x` skriveadgang og `cloud_ingest`
-læseadgang til `aitsm/+/telemetry`. Testbrokeren i `tests/mosquitto/` har samme
+læseadgang til `aitsm/+/telemetry`. Efter #66 har `thingy91x` også
+skriveadgang til `spBv1.0/aitsm/NBIRTH/thingy91x` og
+`spBv1.0/aitsm/NDATA/thingy91x`, og `cloud_ingest` læser
+`spBv1.0/+/NBIRTH/+` og `spBv1.0/+/NDATA/+`. Testbrokeren i `tests/mosquitto/` har samme
 tilstand og en tilsvarende ACL, og udfaldstesten stopper, før ingest stoppes,
 hvis brokeren har `per_listener_settings true`.
 
