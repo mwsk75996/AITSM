@@ -45,9 +45,10 @@ Payload-grænsen (issue #12) er dækket af tre tests:
 - En for lille payloadbuffer giver `-EMSGSIZE`, og målingerne bliver i bufferen.
 - En fuld buffer afviser nye målinger (`-ENOSPC`/`-EBUSY`) og beder om flush.
 - En fuld buffer med de længst mulige værdier kan formateres inden for
-  `CONFIG_AITSM_TRANSMISSION_PAYLOAD_SIZE`. Testen fejler, hvis Kconfig
-  kombineres, så en fuld batch aldrig kan sendes, f.eks.
-  `-x CONFIG_AITSM_BATCH_MAX_SAMPLES=64`.
+  `CONFIG_AITSM_TRANSMISSION_PAYLOAD_SIZE`.
+- Ugyldige Kconfig-kombinationer, hvor en fuld batch aldrig kan sendes, afvises
+  allerede ved build af et `BUILD_ASSERT` i `data_transmission.c`, f.eks.
+  `-x CONFIG_AITSM_BATCH_MAX_SAMPLES=64` med standardstørrelsen 2048 bytes.
 
 Testen kan også køres som `native_sim/native/64`.
 
