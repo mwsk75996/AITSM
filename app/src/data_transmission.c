@@ -16,6 +16,32 @@ LOG_MODULE_REGISTER(data_transmission, CONFIG_AITSM_LOG_LEVEL);
 #define AITSM_MAX_MEASUREMENTS 1
 #endif
 
+/* Longest possible serialized forms, used to reject Kconfig combinations where
+ * a full buffer could never be formatted into the payload buffer. Keep in sync
+ * with append_measurement_json() and aitsm_data_transmission_format().
+ */
+#define AITSM_WORST_CASE_READING \
+	"{\"timestamp\":-9223372036854775808,\"temperature\":-21474836.48," \
+	"\"battery\":655.35}"
+#define AITSM_WORST_CASE_SINGLE_PAYLOAD \
+	"{\"device_id\":\"thingy91x\",\"timestamp\":-9223372036854775808," \
+	"\"temperature\":-21474836.48,\"battery\":655.35}"
+#define AITSM_WORST_CASE_BATCH_OVERHEAD \
+	(sizeof("{\"device_id\":\"thingy91x\",\"readings\":[") - 1U + sizeof("]}") - 1U)
+
+#if defined(CONFIG_AITSM_TRANSMISSION_BATCH)
+#define AITSM_WORST_CASE_PAYLOAD_SIZE \
+	(AITSM_WORST_CASE_BATCH_OVERHEAD + \
+	 AITSM_MAX_MEASUREMENTS * (sizeof(AITSM_WORST_CASE_READING) - 1U) + \
+	 (AITSM_MAX_MEASUREMENTS - 1U) + 1U)
+#else
+#define AITSM_WORST_CASE_PAYLOAD_SIZE sizeof(AITSM_WORST_CASE_SINGLE_PAYLOAD)
+#endif
+
+BUILD_ASSERT(AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE >= AITSM_WORST_CASE_PAYLOAD_SIZE,
+	     "CONFIG_AITSM_TRANSMISSION_PAYLOAD_SIZE is too small for a full batch "
+	     "of CONFIG_AITSM_BATCH_MAX_SAMPLES worst-case measurements");
+
 static struct aitsm_measurement measurement_buffer[AITSM_MAX_MEASUREMENTS];
 static size_t measurement_count;
 static int64_t first_measurement_timestamp;
