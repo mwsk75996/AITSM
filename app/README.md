@@ -114,8 +114,8 @@ vellykket MQTT-acknowledgement.
 ## Data- og transmissionsprofil
 
 Standardprofilen er måling hvert 15. sekund og batching med en maksimal
-afsendelsesfrekvens på fem minutter. Batch-bufferen kan indeholde 20 målinger,
-svarende til fem minutters data ved standardintervallet. Single-afsendelse kan
+afsendelsesfrekvens på fem minutter. En batch indeholder 20 målinger, svarende til fem minutters data, men
+bufferen har plads til 28, se "Hvorfor 28 pladser" nedenfor. Single-afsendelse kan
 vælges i Kconfig til test og fejlsøgning.
 
 Indstillingerne ændres centralt i `prj.conf` eller via et overlay:
@@ -124,7 +124,7 @@ Indstillingerne ændres centralt i `prj.conf` eller via et overlay:
 - `CONFIG_AITSM_TRANSMISSION_BATCH` eller
   `CONFIG_AITSM_TRANSMISSION_SINGLE`.
 - `CONFIG_AITSM_BATCH_INTERVAL_SECONDS`: standard 300 sekunder.
-- `CONFIG_AITSM_BATCH_MAX_SAMPLES`: standard 20 målinger.
+- `CONFIG_AITSM_BATCH_MAX_SAMPLES`: standard 28 målinger.
 
 Bufferen har fast størrelse og afviser nye målinger, når den er fuld. API'et
 understøtter først at fjerne målinger efter en vellykket MQTT-acknowledgement,
@@ -162,6 +162,28 @@ batterispændingen (3,2 V = 0 % og 4,2 V = 100 %). Det er tilstrækkeligt til
 pipeline-test, men bør kalibreres eller erstattes af en egentlig fuel-gauge-
 model før præcis batterirapportering.
 
+### Hvorfor 28 pladser i bufferen
+
+En batch sendes efter 20 målinger (5 minutter), men bufferen har plads til 28.
+De 8 ekstra pladser er et sikkerhedsnet:
+
+1. Når en batch er sendt, bliver målingerne i bufferen, indtil serveren har
+   kvitteret. Først da må de slettes, så ingen data går tabt.
+2. Målingerne stopper ikke imens: der kommer en ny hvert 15. sekund, og de lægges
+   i de ledige pladser.
+3. Hvis kvitteringen er forsinket, er der ellers ingen plads til de nye
+   målinger, og de kasseres. Med præcis 20 pladser skete det i en test, da
+   kvitteringen var mere end 15 sekunder om at komme.
+4. 8 ekstra pladser × 15 sekunder = 2 minutter. Så længe må kvitteringen vare,
+   uden at vi taber en måling. Den længste leveringstid, vi målte, var under 1
+   minut ved batch hvert minut.
+
+28 pladser holder den beregnede worst-case-payload på 1976 bytes
+(28 × 70 bytes + 16), med 72 bytes margin til grænsen på 2048 bytes.
+29 pladser kan også rummes, men ville kun give 2 bytes margin.
+Afsendelsen sker stadig efter 20 målinger, fordi tidsgrænsen er den, der
+udløser den.
+
 ## Målinger under MQTT-udfald (#77)
 
 Målinger starter efter modeminitialisering og fortsætter på den normale
@@ -175,7 +197,7 @@ fuld, springes nye målepladser over og tælles; ingen data overskrives, og der
 udføres ingen sensor-/AT-læsninger, som ikke kan gemmes. Et fuldt-buffer-forløb
 logges samlet. Målingerne genoptages på den normale cadence efter frigivet plads.
 
-Med standardprofilen er der plads til 20 målinger (ca. fem minutters
+Med standardprofilen er der plads til 28 målinger (ca. syv minutters
 målepladser i en tom buffer); eksisterende data reducerer pladsen under et
 udfald. Single-profilen har én plads. RAM-data og tabstæller nulstilles ved
 reboot/strømsvigt. Før UTC-tiden er gyldig gemmes ingen udaterede målinger.
@@ -183,7 +205,7 @@ reboot/strømsvigt. Før UTC-tiden er gyldig gemmes ingen udaterede målinger.
 Dette vælger mulighed A i #77: lokal indsamling og buffering, med en tydelig
 grænse for tab. Det kræver ingen ekstra radioopkoblinger eller flash-skrivninger.
 Læs [beslutningen og valideringen](../docs/maalinger-under-udfald.md).
-Målte strøm-/dataforbrug behandles i #32.
+Dataforbrug og leveringstid behandles i #32. Strømmåling med PPK2 følges i #99.
 
 ## Strømbesparelse (#23)
 
@@ -208,8 +230,8 @@ Strømforbruget holdes nede på to niveauer:
 
 Målt forløb på enheden med standardprofilen (se `RRC-tilstand` i loggen): RRC
 er *connected* i ca. 12 sekunder, når en batch sendes hvert 5. minut, og *idle*
-resten af tiden. Der er ingen keepalive-ping imellem. Måling af selve strømmen
-og dataforbruget hører til #32.
+resten af tiden. Der er ingen keepalive-ping imellem. Dataforbruget behandles i
+#32; måling af selve strømforbruget afventer PPK2 i #99.
 
 `overlay-low-power.conf` slår konsol og logning fra til strømmålinger:
 

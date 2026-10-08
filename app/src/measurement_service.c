@@ -105,7 +105,8 @@ static int publish_buffer(void)
 	}
 	pending_measurement_count = formatted_count;
 	publish_in_flight = true;
-	LOG_INF("Målepayload lagt i MQTT-kø; afventer ack for %u måling(er)", formatted_count);
+	LOG_INF("Målepayload lagt i MQTT-kø; afventer ack for %u måling(er), %u bytes",
+		formatted_count, (unsigned int)length);
 	return 0;
 }
 
