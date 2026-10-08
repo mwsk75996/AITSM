@@ -15,7 +15,6 @@
 
 static const char *const message_type_names[] = {
 	[AITSM_SPARKPLUG_NBIRTH] = "NBIRTH",
-	[AITSM_SPARKPLUG_NDEATH] = "NDEATH",
 	[AITSM_SPARKPLUG_NDATA] = "NDATA",
 };
 
@@ -81,12 +80,9 @@ static bool encode_metrics(pb_ostream_t *stream, const pb_field_t *field, void *
 	const struct metrics_context *context = *arg;
 
 	(void)field;
-	if (context->type != AITSM_SPARKPLUG_NDATA) {
+	if (context->type == AITSM_SPARKPLUG_NBIRTH) {
 		if (!encode_bdseq_metric(stream, context->bd_seq)) {
 			return false;
-		}
-		if (context->type == AITSM_SPARKPLUG_NDEATH) {
-			return true;
 		}
 		/* NBIRTH declares the metrics that NDATA carries, without values. */
 		return encode_float_metric(stream, AITSM_SPARKPLUG_METRIC_TEMPERATURE, 0.0f, 0,
@@ -175,17 +171,6 @@ int aitsm_sparkplug_encode_nbirth(uint8_t *buffer, size_t capacity, size_t *leng
 	};
 
 	return encode_payload(buffer, capacity, length, &context, timestamp_ms, true, 0);
-}
-
-int aitsm_sparkplug_encode_ndeath(uint8_t *buffer, size_t capacity, size_t *length,
-				  uint8_t bd_seq)
-{
-	const struct metrics_context context = {
-		.type = AITSM_SPARKPLUG_NDEATH,
-		.bd_seq = bd_seq,
-	};
-
-	return encode_payload(buffer, capacity, length, &context, 0, false, 0);
 }
 
 int aitsm_sparkplug_encode_ndata(uint8_t *buffer, size_t capacity, size_t *length,

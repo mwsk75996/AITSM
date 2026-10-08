@@ -3,46 +3,8 @@
 
 #include <zephyr/ztest.h>
 
-#include <pb_decode.h>
-
 #include <sparkplug.h>
-#include <sparkplug_b.pb.h>
-
-#define MAX_DECODED_METRICS 16
-
-typedef org_eclipse_tahu_protobuf_Payload Payload;
-typedef org_eclipse_tahu_protobuf_Payload_Metric Metric;
-
-struct decoded {
-	Payload payload;
-	Metric metrics[MAX_DECODED_METRICS];
-	size_t count;
-};
-
-static bool collect_metric(pb_istream_t *stream, const pb_field_t *field, void **arg)
-{
-	struct decoded *decoded = *arg;
-	Metric metric = org_eclipse_tahu_protobuf_Payload_Metric_init_zero;
-
-	(void)field;
-	if (decoded->count >= MAX_DECODED_METRICS ||
-	    !pb_decode(stream, org_eclipse_tahu_protobuf_Payload_Metric_fields, &metric)) {
-		return false;
-	}
-	decoded->metrics[decoded->count++] = metric;
-	return true;
-}
-
-static void decode(const uint8_t *buffer, size_t length, struct decoded *decoded)
-{
-	pb_istream_t stream = pb_istream_from_buffer(buffer, length);
-
-	memset(decoded, 0, sizeof(*decoded));
-	decoded->payload.metrics.funcs.decode = collect_metric;
-	decoded->payload.metrics.arg = decoded;
-	zassert_true(pb_decode(&stream, org_eclipse_tahu_protobuf_Payload_fields,
-			       &decoded->payload), "Payload kunne ikke dekodes");
-}
+#include <sparkplug_decode.h>
 
 ZTEST(sparkplug, test_topics_follow_sparkplug_namespace)
 {
@@ -50,8 +12,6 @@ ZTEST(sparkplug, test_topics_follow_sparkplug_namespace)
 
 	zassert_ok(aitsm_sparkplug_topic(topic, sizeof(topic), AITSM_SPARKPLUG_NBIRTH), NULL);
 	zassert_str_equal(topic, "spBv1.0/aitsm/NBIRTH/thingy91x", NULL);
-	zassert_ok(aitsm_sparkplug_topic(topic, sizeof(topic), AITSM_SPARKPLUG_NDEATH), NULL);
-	zassert_str_equal(topic, "spBv1.0/aitsm/NDEATH/thingy91x", NULL);
 	zassert_ok(aitsm_sparkplug_topic(topic, sizeof(topic), AITSM_SPARKPLUG_NDATA), NULL);
 	zassert_str_equal(topic, "spBv1.0/aitsm/NDATA/thingy91x", NULL);
 }
@@ -75,7 +35,7 @@ ZTEST(sparkplug, test_nbirth_has_seq_zero_bdseq_and_metric_declarations)
 {
 	uint8_t buffer[256];
 	size_t length;
-	struct decoded decoded;
+	static struct decoded decoded;
 
 	zassert_ok(aitsm_sparkplug_encode_nbirth(buffer, sizeof(buffer), &length, 1700000000000ULL,
 						 7), NULL);
@@ -95,21 +55,6 @@ ZTEST(sparkplug, test_nbirth_has_seq_zero_bdseq_and_metric_declarations)
 	zassert_true(decoded.metrics[2].is_null, NULL);
 }
 
-ZTEST(sparkplug, test_ndeath_has_only_bdseq_and_no_seq)
-{
-	uint8_t buffer[64];
-	size_t length;
-	struct decoded decoded;
-
-	zassert_ok(aitsm_sparkplug_encode_ndeath(buffer, sizeof(buffer), &length, 255), NULL);
-	decode(buffer, length, &decoded);
-
-	zassert_false(decoded.payload.has_seq, NULL);
-	zassert_equal(decoded.count, 1, NULL);
-	zassert_str_equal(decoded.metrics[0].name, "bdSeq", NULL);
-	zassert_equal(decoded.metrics[0].value.long_value, 255, NULL);
-}
-
 ZTEST(sparkplug, test_ndata_single_measurement_is_live)
 {
 	const struct aitsm_measurement measurement = {
@@ -119,7 +64,7 @@ ZTEST(sparkplug, test_ndata_single_measurement_is_live)
 	};
 	uint8_t buffer[128];
 	size_t length;
-	struct decoded decoded;
+	static struct decoded decoded;
 
 	zassert_ok(aitsm_sparkplug_encode_ndata(buffer, sizeof(buffer), &length, &measurement, 1,
 						 5, false), NULL);
@@ -145,7 +90,7 @@ ZTEST(sparkplug, test_ndata_batch_keeps_every_reading_and_marks_historical)
 	};
 	uint8_t buffer[256];
 	size_t length;
-	struct decoded decoded;
+	static struct decoded decoded;
 
 	zassert_ok(aitsm_sparkplug_encode_ndata(buffer, sizeof(buffer), &length, measurements,
 						 ARRAY_SIZE(measurements), 255, true), NULL);
@@ -184,7 +129,7 @@ ZTEST(sparkplug, test_invalid_arguments_are_rejected)
 
 	zassert_equal(aitsm_sparkplug_encode_ndata(buffer, sizeof(buffer), &length, NULL, 0, 0,
 						   false), -EINVAL, NULL);
-	zassert_equal(aitsm_sparkplug_encode_ndeath(NULL, 0, &length, 0), -EINVAL, NULL);
+	zassert_equal(aitsm_sparkplug_encode_nbirth(NULL, 0, &length, 1, 0), -EINVAL, NULL);
 }
 
 ZTEST_SUITE(sparkplug, NULL, NULL, NULL, NULL, NULL);

@@ -29,12 +29,13 @@ BUILD_ASSERT(CONFIG_AITSM_MQTT_PUBACK_TIMEOUT_SECONDS <=
 
 #define AITSM_MQTT_HOSTNAME "aitsm.vps.webdock.cloud"
 #define AITSM_MQTT_CLIENT_ID "thingy91x"
-#define AITSM_MQTT_TOPIC "aitsm/thingy91x/telemetry"
+#define AITSM_MQTT_TOPIC_SIZE 64
 static char hostname[] = AITSM_MQTT_HOSTNAME;
 static char client_id[] = AITSM_MQTT_CLIENT_ID;
 static char username[] = AITSM_MQTT_USERNAME;
 static char password[] = AITSM_MQTT_PASSWORD;
-static char publish_topic[] = AITSM_MQTT_TOPIC;
+static char publish_topic[AITSM_MQTT_TOPIC_SIZE];
+static size_t publish_topic_length;
 static struct k_work_q mqtt_workqueue;
 static K_THREAD_STACK_DEFINE(mqtt_workqueue_stack,
 			    CONFIG_AITSM_MQTT_WORKQUEUE_STACK_SIZE);
@@ -45,7 +46,7 @@ static bool initialized;
  * to one pending publish and provides the cross-thread memory barrier.
  */
 static atomic_t publish_pending;
-static char publish_payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE];
+static uint8_t publish_payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE];
 static size_t publish_length;
 static atomic_t lte_available;
 static atomic_t helper_connected;
@@ -169,14 +170,14 @@ static int send_copied_payload(uint16_t message_id, bool duplicate)
 	struct mqtt_publish_param param = {
 		.message = {
 			.payload = {
-				.data = (uint8_t *)publish_payload,
+				.data = publish_payload,
 				.len = publish_length,
 			},
 			.topic = {
 				.qos = MQTT_QOS_1_AT_LEAST_ONCE,
 				.topic = {
 					.utf8 = publish_topic,
-					.size = sizeof(publish_topic) - 1,
+					.size = publish_topic_length,
 				},
 			},
 		},
@@ -256,10 +257,15 @@ static void mqtt_puback_timeout_handler(struct k_work *work)
 
 static K_WORK_DEFINE(mqtt_publish_work, mqtt_publish_work_handler);
 
-int aitsm_mqtt_publish_payload(const char *payload, size_t payload_length, uint32_t *token)
+int aitsm_mqtt_publish_payload(const char *topic, const uint8_t *payload, size_t payload_length,
+			       uint32_t *token)
 {
-	if (payload == NULL || payload_length == 0 || token == NULL) {
+	if (topic == NULL || payload == NULL || payload_length == 0 || token == NULL) {
 		return -EINVAL;
+	}
+	const size_t topic_length = strlen(topic);
+	if (topic_length == 0 || topic_length >= sizeof(publish_topic)) {
+		return -EMSGSIZE;
 	}
 	if (payload_length > sizeof(publish_payload)) {
 		return -EMSGSIZE;
@@ -280,6 +286,8 @@ int aitsm_mqtt_publish_payload(const char *payload, size_t payload_length, uint3
 
 	memcpy(publish_payload, payload, payload_length);
 	publish_length = payload_length;
+	memcpy(publish_topic, topic, topic_length + 1U);
+	publish_topic_length = topic_length;
 	publish_generation = atomic_get(&generation);
 	publish_token = (uint32_t)atomic_inc(&next_publish_token) + 1U;
 	*token = publish_token;

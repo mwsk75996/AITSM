@@ -21,6 +21,8 @@ static int publish_result;
 static int disconnect_calls;
 static int connect_calls;
 static int publish_calls;
+#define TEST_TOPIC "spBv1.0/aitsm/NDATA/thingy91x"
+
 static char sent_payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE];
 static size_t sent_length;
 static uint16_t sent_id;
@@ -82,6 +84,8 @@ int mqtt_helper_publish(const struct mqtt_publish_param *param)
 	memcpy(sent_payload, param->message.payload.data, sent_length);
 	sent_id = param->message_id;
 	zassert_equal(param->message.topic.qos, MQTT_QOS_1_AT_LEAST_ONCE, NULL);
+	zassert_equal(param->message.topic.topic.size, strlen(TEST_TOPIC), NULL);
+	zassert_mem_equal(param->message.topic.topic.utf8, TEST_TOPIC, strlen(TEST_TOPIC), NULL);
 	if (ack_during_publish) { callbacks.cb.on_puback(sent_id, 0); }
 	return publish_result;
 }
@@ -170,10 +174,10 @@ ZTEST(mqtt_client, test_publish_copies_payload_and_rejects_overwrite)
 	char payload[] = "original";
 	connected();
 	block_backend = true;
-	zassert_ok(aitsm_mqtt_publish_payload(payload, strlen(payload), &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)payload, strlen(payload), &submitted_token), NULL);
 	zassert_ok(k_sem_take(&backend_started, K_SECONDS(1)), NULL);
 	memset(payload, 'x', strlen(payload));
-	zassert_equal(aitsm_mqtt_publish_payload("new", 3, &submitted_token), -EBUSY, NULL);
+	zassert_equal(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"new", 3, &submitted_token), -EBUSY, NULL);
 	block_backend = false;
 	k_sem_give(&backend_release);
 	zassert_true(k_work_queue_drain(worker, false) >= 0, NULL);
@@ -188,7 +192,7 @@ ZTEST(mqtt_client, test_slow_publish_does_not_block_system_workqueue)
 {
 	connected();
 	block_backend = true;
-	zassert_ok(aitsm_mqtt_publish_payload("payload", 7, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"payload", 7, &submitted_token), NULL);
 	zassert_ok(k_sem_take(&backend_started, K_SECONDS(1)), NULL);
 	zassert_true(k_work_submit(&probe) >= 0, NULL);
 	int result = k_sem_take(&probe_done, K_MSEC(500));
@@ -200,7 +204,7 @@ ZTEST(mqtt_client, test_publish_failure_posts_result)
 {
 	connected();
 	publish_result = -EIO;
-	zassert_ok(aitsm_mqtt_publish_payload("payload", 7, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"payload", 7, &submitted_token), NULL);
 	assert_event(AITSM_APP_EVENT_MQTT_PUBLISH_RESULT, -EIO);
 }
 
@@ -214,10 +218,12 @@ ZTEST(mqtt_client, test_connect_failure_posts_error)
 ZTEST(mqtt_client, test_invalid_or_oversized_payload_is_rejected)
 {
 	char payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE + 1];
-	zassert_equal(aitsm_mqtt_publish_payload(NULL, 1, &submitted_token), -EINVAL, NULL);
-	zassert_equal(aitsm_mqtt_publish_payload(payload, 0, &submitted_token), -EINVAL, NULL);
-	zassert_equal(aitsm_mqtt_publish_payload(payload, sizeof(payload), &submitted_token), -EMSGSIZE, NULL);
-	zassert_equal(aitsm_mqtt_publish_payload("payload", 7, NULL), -EINVAL, NULL);
+	zassert_equal(aitsm_mqtt_publish_payload(TEST_TOPIC, NULL, 1, &submitted_token), -EINVAL, NULL);
+	zassert_equal(aitsm_mqtt_publish_payload(NULL, (const uint8_t *)"payload", 7, &submitted_token), -EINVAL, NULL);
+	zassert_equal(aitsm_mqtt_publish_payload("", (const uint8_t *)"payload", 7, &submitted_token), -EMSGSIZE, NULL);
+	zassert_equal(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)payload, 0, &submitted_token), -EINVAL, NULL);
+	zassert_equal(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)payload, sizeof(payload), &submitted_token), -EMSGSIZE, NULL);
+	zassert_equal(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"payload", 7, NULL), -EINVAL, NULL);
 }
 
 ZTEST(mqtt_client, test_duplicate_connect_rejected_until_connack)
@@ -235,7 +241,7 @@ ZTEST(mqtt_client, test_offline_operations_rejected)
 {
 	aitsm_mqtt_set_lte_available(false);
 	zassert_equal(aitsm_mqtt_connect(), -ENETDOWN, NULL);
-	zassert_equal(aitsm_mqtt_publish_payload("payload", 7, &submitted_token), -ENOTCONN, NULL);
+	zassert_equal(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"payload", 7, &submitted_token), -ENOTCONN, NULL);
 }
 
 ZTEST(mqtt_client, test_late_connack_after_lte_loss_disconnects_on_worker)
@@ -268,7 +274,7 @@ ZTEST(mqtt_client, test_stale_connect_error_suppressed_after_lte_loss)
 ZTEST(mqtt_client, test_duplicate_and_stale_pubacks_do_not_complete_new_publish)
 {
 	connected();
-	zassert_ok(aitsm_mqtt_publish_payload("first", 5, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"first", 5, &submitted_token), NULL);
 	zassert_true(k_work_queue_drain(worker, false) >= 0, NULL);
 	uint16_t old_id = sent_id;
 	callbacks.cb.on_puback(old_id + 1, 0);
@@ -283,7 +289,7 @@ ZTEST(mqtt_client, test_duplicate_and_stale_pubacks_do_not_complete_new_publish)
 	aitsm_mqtt_set_lte_available(true);
 	k_sem_reset(&backend_started);
 	connected();
-	zassert_ok(aitsm_mqtt_publish_payload("second", 6, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"second", 6, &submitted_token), NULL);
 	zassert_true(k_work_queue_drain(worker, false) >= 0, NULL);
 	callbacks.cb.on_puback(old_id, 0);
 	zassert_equal(k_msgq_num_used_get(&events), 0, NULL);
@@ -296,7 +302,7 @@ ZTEST(mqtt_client, test_lte_loss_during_publish_suppresses_completion)
 	connected();
 	block_backend = true;
 	publish_result = -EIO;
-	zassert_ok(aitsm_mqtt_publish_payload("payload", 7, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"payload", 7, &submitted_token), NULL);
 	zassert_ok(k_sem_take(&backend_started, K_SECONDS(1)), NULL);
 	aitsm_mqtt_set_lte_available(false);
 	k_sem_give(&backend_release);
@@ -334,7 +340,7 @@ ZTEST(mqtt_client, test_queued_publish_discarded_after_lte_loss)
 {
 	connected();
 	block_worker();
-	zassert_ok(aitsm_mqtt_publish_payload("payload", 7, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"payload", 7, &submitted_token), NULL);
 	aitsm_mqtt_set_lte_available(false);
 	k_sem_give(&backend_release);
 	zassert_true(k_work_queue_drain(worker, false) >= 0, NULL);
@@ -347,7 +353,7 @@ static void first_publish(void)
 {
 	connected();
 	k_sem_reset(&backend_started);
-	zassert_ok(aitsm_mqtt_publish_payload("original", 8, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"original", 8, &submitted_token), NULL);
 	zassert_true(k_work_queue_drain(worker, false) >= 0, NULL);
 	k_sem_reset(&backend_started);
 	zassert_false(sent_duplicate, NULL);
@@ -368,7 +374,7 @@ ZTEST(mqtt_client, test_waiting_puback_protects_payload_and_completion_token)
 {
 	first_publish();
 	uint32_t original_token = submitted_token, unused;
-	zassert_equal(aitsm_mqtt_publish_payload("new", 3, &unused), -EBUSY, NULL);
+	zassert_equal(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"new", 3, &unused), -EBUSY, NULL);
 	callbacks.cb.on_puback(sent_id, 0);
 	assert_event(AITSM_APP_EVENT_MQTT_PUBLISH_RESULT, 0);
 	zassert_equal(submitted_token, original_token, NULL);
@@ -388,7 +394,7 @@ ZTEST(mqtt_client, test_missing_puback_retries_on_same_connection_and_ack_cancel
 	k_sleep(K_MSEC(2200));
 	zassert_equal(publish_calls, 2, "Retry continued after ACK");
 	uint32_t old_token = submitted_token;
-	zassert_ok(aitsm_mqtt_publish_payload("second", 6, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"second", 6, &submitted_token), NULL);
 	zassert_true(k_work_queue_drain(worker, false) >= 0, NULL);
 	zassert_not_equal(submitted_token, old_token, NULL);
 	zassert_false(sent_duplicate, "New publication inherited DUP");
@@ -437,7 +443,7 @@ ZTEST(mqtt_client, test_retry_failure_then_old_puback_cannot_complete_new_publis
 	assert_event(AITSM_APP_EVENT_MQTT_PUBLISH_RESULT, -EIO);
 	zassert_true(k_work_queue_drain(worker, false) >= 0, NULL);
 	publish_result = 0;
-	zassert_ok(aitsm_mqtt_publish_payload("second", 6, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"second", 6, &submitted_token), NULL);
 	zassert_true(k_work_queue_drain(worker, false) >= 0, NULL);
 	zassert_not_equal(submitted_token, old_token, NULL);
 	callbacks.cb.on_puback(old_id, 0);
@@ -450,7 +456,7 @@ ZTEST(mqtt_client, test_ack_before_socket_write_returns_leaves_no_retry)
 {
 	connected();
 	ack_during_publish = true;
-	zassert_ok(aitsm_mqtt_publish_payload("original", 8, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"original", 8, &submitted_token), NULL);
 	zassert_true(k_work_queue_drain(worker, false) >= 0, NULL);
 	assert_event(AITSM_APP_EVENT_MQTT_PUBLISH_RESULT, 0);
 	k_sleep(K_MSEC(1200));
@@ -463,12 +469,12 @@ ZTEST(mqtt_client, test_ack_during_blocked_write_cannot_release_payload_early)
 	connected();
 	block_backend = true;
 	k_sem_reset(&backend_started);
-	zassert_ok(aitsm_mqtt_publish_payload("original", 8, &submitted_token), NULL);
+	zassert_ok(aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"original", 8, &submitted_token), NULL);
 	zassert_ok(k_sem_take(&backend_started, K_SECONDS(1)), NULL);
 	callbacks.cb.on_puback(sent_id, 0);
 	assert_event(AITSM_APP_EVENT_MQTT_PUBLISH_RESULT, 0);
 	uint32_t unused;
-	int result = aitsm_mqtt_publish_payload("replacement", 11, &unused);
+	int result = aitsm_mqtt_publish_payload(TEST_TOPIC, (const uint8_t *)"replacement", 11, &unused);
 	k_sem_give(&backend_release);
 	zassert_equal(result, -EBUSY, "ACK released payload before write finished");
 	zassert_true(k_work_queue_drain(worker, false) >= 0, NULL);

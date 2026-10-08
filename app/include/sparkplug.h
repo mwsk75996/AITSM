@@ -10,7 +10,6 @@
 /** Sparkplug B v1.0 message types used by the edge node. */
 enum aitsm_sparkplug_message_type {
 	AITSM_SPARKPLUG_NBIRTH,
-	AITSM_SPARKPLUG_NDEATH,
 	AITSM_SPARKPLUG_NDATA,
 };
 
@@ -21,6 +20,13 @@ enum aitsm_sparkplug_message_type {
 #define AITSM_SPARKPLUG_METRIC_TEMPERATURE "temperature"
 #define AITSM_SPARKPLUG_METRIC_BATTERY "battery"
 #define AITSM_SPARKPLUG_METRIC_BDSEQ "bdSeq"
+
+/**
+ * Upper bound for an NDATA payload with count measurements: payload header
+ * (timestamp and seq) plus two metrics per measurement, each with name,
+ * timestamp, datatype, historical flag and a float value.
+ */
+#define AITSM_SPARKPLUG_NDATA_MAX_SIZE(count) (16U + (count) * 70U)
 
 /**
  * Write the topic spBv1.0/<group_id>/<message type>/<edge_node_id>.
@@ -38,10 +44,6 @@ uint8_t aitsm_sparkplug_next_seq(uint8_t seq);
  */
 int aitsm_sparkplug_encode_nbirth(uint8_t *buffer, size_t capacity, size_t *length,
 				  uint64_t timestamp_ms, uint8_t bd_seq);
-
-/** Encode an NDEATH payload. It carries only bdSeq and no seq number. */
-int aitsm_sparkplug_encode_ndeath(uint8_t *buffer, size_t capacity, size_t *length,
-				  uint8_t bd_seq);
 
 /**
  * Encode an NDATA payload with temperature and battery metrics for each

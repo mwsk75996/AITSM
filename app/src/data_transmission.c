@@ -7,6 +7,7 @@
 #include <zephyr/sys/util.h>
 
 #include <data_transmission.h>
+#include <sparkplug.h>
 
 LOG_MODULE_REGISTER(data_transmission, CONFIG_AITSM_LOG_LEVEL);
 
@@ -16,75 +17,20 @@ LOG_MODULE_REGISTER(data_transmission, CONFIG_AITSM_LOG_LEVEL);
 #define AITSM_MAX_MEASUREMENTS 1
 #endif
 
-/* Longest possible serialized forms, used to reject Kconfig combinations where
- * a full buffer could never be formatted into the payload buffer. Keep in sync
- * with append_measurement_json() and aitsm_data_transmission_format().
+/* A full buffer must always fit in one NDATA payload, otherwise it could
+ * never be sent and the buffer would stay full.
  */
-#define AITSM_WORST_CASE_READING \
-	"{\"timestamp\":-9223372036854775808,\"temperature\":-21474836.48," \
-	"\"battery\":655.35}"
-#define AITSM_WORST_CASE_SINGLE_PAYLOAD \
-	"{\"device_id\":\"thingy91x\",\"timestamp\":-9223372036854775808," \
-	"\"temperature\":-21474836.48,\"battery\":655.35}"
-#define AITSM_WORST_CASE_BATCH_OVERHEAD \
-	(sizeof("{\"device_id\":\"thingy91x\",\"readings\":[") - 1U + sizeof("]}") - 1U)
-
-#if defined(CONFIG_AITSM_TRANSMISSION_BATCH)
-#define AITSM_WORST_CASE_PAYLOAD_SIZE \
-	(AITSM_WORST_CASE_BATCH_OVERHEAD + \
-	 AITSM_MAX_MEASUREMENTS * (sizeof(AITSM_WORST_CASE_READING) - 1U) + \
-	 (AITSM_MAX_MEASUREMENTS - 1U) + 1U)
-#else
-#define AITSM_WORST_CASE_PAYLOAD_SIZE sizeof(AITSM_WORST_CASE_SINGLE_PAYLOAD)
-#endif
-
-BUILD_ASSERT(AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE >= AITSM_WORST_CASE_PAYLOAD_SIZE,
+BUILD_ASSERT(AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE >=
+		     AITSM_SPARKPLUG_NDATA_MAX_SIZE(AITSM_MAX_MEASUREMENTS),
 	     "CONFIG_AITSM_TRANSMISSION_PAYLOAD_SIZE is too small for a full batch "
 	     "of CONFIG_AITSM_BATCH_MAX_SAMPLES worst-case measurements");
 
 static struct aitsm_measurement measurement_buffer[AITSM_MAX_MEASUREMENTS];
 static size_t measurement_count;
 static int64_t first_measurement_timestamp;
+static uint8_t next_seq = 1;
 static bool initialized;
 static struct k_mutex measurement_mutex;
-
-static int append_measurement_json(char *buffer, size_t capacity, size_t *offset,
-				   const struct aitsm_measurement *measurement,
-				   bool include_device_id, bool add_comma)
-{
-	int64_t temperature = measurement->temperature_centi_celsius;
-	uint64_t absolute_temperature = temperature < 0 ? (uint64_t)-temperature :
-								 (uint64_t)temperature;
-	const char *sign = temperature < 0 ? "-" : "";
-	uint32_t temperature_whole = absolute_temperature / 100U;
-	uint32_t temperature_fraction = absolute_temperature % 100U;
-	uint32_t battery_whole = measurement->battery_centi_percent / 100U;
-	uint32_t battery_fraction = measurement->battery_centi_percent % 100U;
-	int written;
-
-	if (include_device_id) {
-		written = snprintk(buffer + *offset, capacity - *offset,
-			"%s{\"device_id\":\"thingy91x\",\"timestamp\":%lld,"
-			"\"temperature\":%s%u.%02u,\"battery\":%u.%02u}",
-			add_comma ? "," : "", (long long)measurement->timestamp,
-			sign, temperature_whole, temperature_fraction,
-			battery_whole, battery_fraction);
-	} else {
-		written = snprintk(buffer + *offset, capacity - *offset,
-			"%s{\"timestamp\":%lld,\"temperature\":%s%u.%02u,"
-			"\"battery\":%u.%02u}",
-			add_comma ? "," : "", (long long)measurement->timestamp,
-			sign, temperature_whole, temperature_fraction,
-			battery_whole, battery_fraction);
-	}
-
-	if (written < 0 || (size_t)written >= capacity - *offset) {
-		return -EMSGSIZE;
-	}
-
-	*offset += (size_t)written;
-	return 0;
-}
 
 int aitsm_data_transmission_init(void)
 {
@@ -93,6 +39,7 @@ int aitsm_data_transmission_init(void)
 	memset(measurement_buffer, 0, sizeof(measurement_buffer));
 	measurement_count = 0;
 	first_measurement_timestamp = 0;
+	next_seq = 1;
 	initialized = true;
 	k_mutex_unlock(&measurement_mutex);
 
@@ -184,13 +131,12 @@ bool aitsm_data_transmission_should_flush(int64_t now)
 	return flush;
 }
 
-int aitsm_data_transmission_format(char *buffer, size_t capacity,
-				   size_t *formatted_measurement_count)
+int aitsm_data_transmission_format(uint8_t *buffer, size_t capacity, size_t *length,
+				   size_t *formatted_count)
 {
-	size_t offset = 0;
 	int err;
 
-	if (buffer == NULL || formatted_measurement_count == NULL || capacity == 0) {
+	if (buffer == NULL || length == NULL || formatted_count == NULL || capacity == 0) {
 		return -EINVAL;
 	}
 
@@ -204,41 +150,26 @@ int aitsm_data_transmission_format(char *buffer, size_t capacity,
 		return -ENODATA;
 	}
 
-#if defined(CONFIG_AITSM_TRANSMISSION_SINGLE)
-	err = append_measurement_json(buffer, capacity, &offset,
-				       &measurement_buffer[0], true, false);
-#else
-	int written = snprintk(buffer, capacity,
-				"{\"device_id\":\"thingy91x\",\"readings\":[");
-	if (written < 0 || (size_t)written >= capacity) {
-		err = -EMSGSIZE;
-	} else {
-		offset = (size_t)written;
-		err = 0;
-		for (size_t i = 0; i < measurement_count; i++) {
-			err = append_measurement_json(buffer, capacity, &offset,
-					       &measurement_buffer[i], false, i != 0);
-			if (err != 0) {
-				break;
-			}
-		}
-		if (err == 0) {
-			written = snprintk(buffer + offset, capacity - offset, "]}");
-			if (written < 0 || (size_t)written >= capacity - offset) {
-				err = -EMSGSIZE;
-			} else {
-				offset += (size_t)written;
-			}
-		}
-	}
-#endif
-
+	/* The seq is only advanced by commit, so a resend after a lost PUBACK
+	 * carries the same seq as the first attempt.
+	 */
+	err = aitsm_sparkplug_encode_ndata(buffer, capacity, length, measurement_buffer,
+					   measurement_count, next_seq,
+					   aitsm_data_transmission_mode() ==
+						   AITSM_TRANSMISSION_MODE_BATCH);
 	if (err == 0) {
-		*formatted_measurement_count = measurement_count;
+		*formatted_count = measurement_count;
 	}
 
 	k_mutex_unlock(&measurement_mutex);
 	return err;
+}
+
+void aitsm_data_transmission_start_session(void)
+{
+	k_mutex_lock(&measurement_mutex, K_FOREVER);
+	next_seq = 1;
+	k_mutex_unlock(&measurement_mutex);
 }
 
 int aitsm_data_transmission_commit(size_t count)
@@ -257,6 +188,7 @@ int aitsm_data_transmission_commit(size_t count)
 		memmove(measurement_buffer, &measurement_buffer[count],
 			(measurement_count - count) * sizeof(measurement_buffer[0]));
 		measurement_count -= count;
+		next_seq = aitsm_sparkplug_next_seq(next_seq);
 		first_measurement_timestamp = measurement_count == 0 ? 0 :
 			measurement_buffer[0].timestamp;
 	}
