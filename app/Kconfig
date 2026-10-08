@@ -53,6 +53,23 @@ config AITSM_TRANSMISSION_PAYLOAD_SIZE
 
 endmenu
 
+menu "AITSM SparkplugB"
+
+config AITSM_SPARKPLUG_GROUP_ID
+	string "Sparkplug B group ID"
+	default "aitsm"
+	help
+		Group ID in the topic namespace spBv1.0/<group_id>/<message_type>/<edge_node_id>.
+
+config AITSM_SPARKPLUG_EDGE_NODE_ID
+	string "Sparkplug B edge node ID"
+	default "thingy91x"
+	help
+		Edge node ID in the topic namespace. Also used as the device identity
+		in the cloud.
+
+endmenu
+
 menu "AITSM MQTT worker"
 
 config AITSM_MQTT_WORKQUEUE_STACK_SIZE
