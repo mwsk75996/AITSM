@@ -70,13 +70,15 @@ jobs:
             https://github.com/nrfconnect/sdk-zephyr.git "$RUNNER_TEMP/zephyr"
           west init -l "$RUNNER_TEMP/zephyr"
           echo "ZEPHYR_BASE=$RUNNER_TEMP/zephyr" >> "$GITHUB_ENV"
+          # SparkplugB payloads are encoded with nanopb (#66).
+          (cd "$RUNNER_TEMP/zephyr" && west update --narrow -o=--depth=1 nanopb)
 
       - name: Kør native firmware-tests
         run: |
           python "$ZEPHYR_BASE/scripts/twister" \
             -p native_sim/native/64 \
             -T tests/data_transmission -T tests/led_status -T tests/mqtt_client \
-            -T tests/mqtt_reconnect -T tests/app_controller -T tests/measurement_service \
+            -T tests/mqtt_reconnect -T tests/app_controller -T tests/measurement_service -T tests/sparkplug \
             --outdir twister-out --inline-logs
 
       - name: Gem testresultater og logs
