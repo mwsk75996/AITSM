@@ -175,6 +175,49 @@ ZTEST(data_transmission, test_empty_buffer_does_not_flush_and_has_capacity)
 	zassert_false(aitsm_data_transmission_should_flush(INT64_MAX), NULL);
 }
 
+#if defined(CONFIG_AITSM_TRANSMISSION_BATCH)
+ZTEST(data_transmission, test_standard_batch_leaves_capacity_until_ack)
+{
+	/* Exercise the real cadence: the batch must be ready after 20 samples,
+	 * before the 28-slot buffer is full. Samples collected during PUBACK
+	 * wait must survive committing only the transmitted prefix.
+	 */
+	struct aitsm_measurement sample = first_measurement;
+	uint8_t payload[AITSM_DATA_TRANSMISSION_PAYLOAD_SIZE];
+	size_t length, sent_count, remaining_count;
+	static struct decoded decoded;
+
+	zassert_equal(CONFIG_AITSM_MEASUREMENT_INTERVAL_SECONDS, 15, NULL);
+	zassert_equal(CONFIG_AITSM_BATCH_INTERVAL_SECONDS, 300, NULL);
+	zassert_equal(CONFIG_AITSM_BATCH_MAX_SAMPLES, 28, NULL);
+	for (size_t i = 0; i < 20; i++) {
+		sample.timestamp = first_measurement.timestamp + i * 15;
+		zassert_ok(aitsm_data_transmission_add(&sample), NULL);
+		zassert_equal(aitsm_data_transmission_should_flush(sample.timestamp), i == 19,
+			      "Only the twentieth sample should trigger the batch");
+	}
+	zassert_true(aitsm_data_transmission_has_capacity(), NULL);
+	zassert_ok(aitsm_data_transmission_format(payload, sizeof(payload), &length,
+						 &sent_count), NULL);
+	zassert_equal(sent_count, 20, NULL);
+	for (size_t i = 20; i < 28; i++) {
+		sample.timestamp = first_measurement.timestamp + i * 15;
+		zassert_ok(aitsm_data_transmission_add(&sample), NULL);
+	}
+	zassert_false(aitsm_data_transmission_has_capacity(), NULL);
+	zassert_ok(aitsm_data_transmission_commit(sent_count), NULL);
+	zassert_true(aitsm_data_transmission_has_capacity(), NULL);
+	zassert_false(aitsm_data_transmission_should_flush(sample.timestamp), NULL);
+	zassert_ok(aitsm_data_transmission_format(payload, sizeof(payload), &length,
+						 &remaining_count), NULL);
+	zassert_equal(remaining_count, 8, NULL);
+	decode(payload, length, &decoded);
+	zassert_equal(decoded.metrics[0].timestamp, 400000ULL,
+		      "The first sample collected during PUBACK wait must remain");
+	zassert_equal(decoded.metrics[decoded.count - 1].timestamp, 505000ULL, NULL);
+}
+#endif
+
 ZTEST(data_transmission, test_full_buffer_preserves_oldest_and_recovers_after_ack)
 {
 	struct aitsm_measurement sample = first_measurement;

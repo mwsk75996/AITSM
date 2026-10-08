@@ -178,8 +178,9 @@ De 8 ekstra pladser er et sikkerhedsnet:
    uden at vi taber en måling. Den længste leveringstid, vi målte, var under 1
    minut ved batch hvert minut.
 
-28 er også den største buffer, der stadig kan være i en payload på 2048 bytes
-(28 × 70 bytes + 16 = 1976). Større buffer kræver større payload og mere RAM.
+28 pladser holder den beregnede worst-case-payload på 1976 bytes
+(28 × 70 bytes + 16), med 72 bytes margin til grænsen på 2048 bytes.
+29 pladser kan også rummes, men ville kun give 2 bytes margin.
 Afsendelsen sker stadig efter 20 målinger, fordi tidsgrænsen er den, der
 udløser den.
 

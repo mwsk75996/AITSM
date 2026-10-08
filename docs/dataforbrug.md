@@ -65,8 +65,9 @@ bufferen): 4 til 8 KB modtaget og 1 KB sendt, én gang pr. forbindelse.
 ## Anbefalet standardprofil
 
 **Batch hvert 5. minut** (nuværende standard). Den bruger ca. 16 KB i timen
-(ca. 0,4 MB i døgnet), leverer en måling senest efter 5 minutter, og modemmet
-kan sove imellem. `batch8` giver ingen målbar gevinst, og `single` bruger
+(ca. 0,4 MB i døgnet), gør en batch klar til afsendelse inden for 5 minutter,
+og modemmet kan sove imellem. Netværksudfald og forsinket PUBACK kan forlænge
+leveringstiden. `batch8` giver ingen målbar gevinst, og `single` bruger
 fire gange så meget data.
 
 ## Valg: 28 pladser i bufferen
@@ -86,8 +87,9 @@ Forklaring på almindeligt dansk:
   15 sekunder = 2 minutter.
 - Batchen sendes stadig efter 20 målinger (5 minutter). De 8 ekstra pladser
   bruges kun, hvis kvitteringen er forsinket.
-- 28 er den største buffer, der kan være i en payload på 2048 bytes
-  (28 × 70 + 16 = 1976 bytes).
+- 28 pladser giver en beregnet worst-case-payload på 1976 bytes
+  (28 × 70 + 16), med 72 bytes margin til grænsen på 2048 bytes.
+  29 pladser kan også rummes, men ville kun give 2 bytes margin.
 
 Derfor er standarden `AITSM_BATCH_MAX_SAMPLES=28`. For at holde batchen på 20
 målinger sendes den nu, når den *næste* måling ville falde uden for
