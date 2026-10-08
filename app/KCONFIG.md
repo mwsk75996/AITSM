@@ -140,6 +140,15 @@ hukommelsesforbrug. Den skal kunne rumme en fuld SparkplugB NDATA med
 `CONFIG_AITSM_BATCH_MAX_SAMPLES` målinger (ca. 70 bytes pr. måling); et
 `BUILD_ASSERT` afviser ugyldige kombinationer.
 
+## Strømbesparelse (#23)
+
+`prj.conf` sætter `CONFIG_LTE_LC_PSM_MODULE=y`, `CONFIG_LTE_PSM_REQ=y` med
+`CONFIG_LTE_PSM_REQ_FORMAT_SECONDS=y`, `CONFIG_LTE_PSM_REQ_RPTAU_SECONDS=3600` og
+`CONFIG_LTE_PSM_REQ_RAT_SECONDS=10`. Nettet bestemmer de tildelte værdier.
+`CONFIG_MQTT_KEEPALIVE=1200` skal være længere end batch-intervallet, så
+keepalive-ping ikke vækker modemmet. `overlay-low-power.conf` slår konsol og
+logning fra til målinger.
+
 ## AITSM SparkplugB (#66)
 
 `CONFIG_AITSM_SPARKPLUG_GROUP_ID` (standard `aitsm`) og
