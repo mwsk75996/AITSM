@@ -35,6 +35,17 @@ static void lte_event_handler(const struct lte_lc_evt *const event)
 			break;
 		}
 		break;
+	case LTE_LC_EVT_PSM_UPDATE:
+		/* The network decides the granted values; active_time is -1 when
+		 * PSM is not granted.
+		 */
+		LOG_INF("PSM tildelt: TAU %d s, aktiv tid %d s", event->psm_cfg.tau,
+			event->psm_cfg.active_time);
+		break;
+	case LTE_LC_EVT_RRC_UPDATE:
+		LOG_INF("RRC-tilstand: %s",
+			event->rrc_mode == LTE_LC_RRC_MODE_CONNECTED ? "connected" : "idle");
+		break;
 	case LTE_LC_EVT_LTE_MODE_UPDATE:
 		/* The modem is configured for NB-IoT only, so any other mode
 		 * reported here is unexpected and worth a warning in the log.

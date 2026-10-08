@@ -183,7 +183,39 @@ reboot/strømsvigt. Før UTC-tiden er gyldig gemmes ingen udaterede målinger.
 Dette vælger mulighed A i #77: lokal indsamling og buffering, med en tydelig
 grænse for tab. Det kræver ingen ekstra radioopkoblinger eller flash-skrivninger.
 Læs [beslutningen og valideringen](../docs/maalinger-under-udfald.md).
-PSM/eDRX og målte strøm-/dataforbrug behandles fortsat i #23 og #32.
+Målte strøm-/dataforbrug behandles i #32.
+
+## Strømbesparelse (#23)
+
+Strømforbruget holdes nede på to niveauer:
+
+- **Modemmet** beder om PSM (`CONFIG_LTE_PSM_REQ`): ønsket TAU 3600 s og aktiv
+  tid 10 s. På den testede NB-IoT-forbindelse (roaming) tildelte nettet TAU
+  4200 s og aktiv tid 10 s, og det logges som `PSM tildelt: ...`. Nettet kan
+  tildele andre værdier hos andre operatører; en aktiv tid på -1 betyder, at
+  PSM ikke er tildelt. Der bruges ikke eDRX: enheden sender kun og modtager
+  ingen beskeder fra skyen (NCMD er ikke med), så eDRX ville kun forlænge den
+  tid, modemmet lytter.
+- **MQTT-keepalive** er 1200 s (`CONFIG_MQTT_KEEPALIVE`, standard 60 s) og længere
+  end batch-intervallet på 300 s. Ellers ville ping hvert minut holde modemmet
+  vågent og gøre PSM virkningsløs. Selve batchene holder forbindelsen og
+  operatørens NAT-mapping i live. Mosquitto afbryder først efter 1,5 gange
+  keepalive uden trafik.
+- **MCU'en** sover mellem målingerne: måleplanlægningen bruger `k_work_delayable`
+  på en tickless kernel, så CPU'en står i idle, når intet arbejde er klar, og
+  vågner ved næste måleinterval eller netværkshændelse. Der er ingen
+  busy-wait.
+
+Målt forløb på enheden med standardprofilen (se `RRC-tilstand` i loggen): RRC
+er *connected* i ca. 12 sekunder, når en batch sendes hvert 5. minut, og *idle*
+resten af tiden. Der er ingen keepalive-ping imellem. Måling af selve strømmen
+og dataforbruget hører til #32.
+
+`overlay-low-power.conf` slår konsol og logning fra til strømmålinger:
+
+```bash
+west build -b thingy91x/nrf9151/ns -d build/lowpower app -- -DEXTRA_CONF_FILE=overlay-low-power.conf
+```
 
 ## Logning
 
