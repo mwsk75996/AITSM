@@ -2,7 +2,9 @@
 
 Dette dokument viser, hvor mange data de fire transmissionsprofiler bruger, og hvor
 lang tid der går fra måling til bekræftet afsendelse. Strømforbruget er **ikke**
-målt endnu (kræver PPK2) og tilføjes, når måleudstyret er på plads.
+målt endnu. Det følges særskilt i [#99](https://github.com/mwsk75996/AITSM/issues/99),
+som afventer skolens PPK2. Strømmålingen blokerer ikke arbejdet med Simple (#92),
+men skal gennemføres inden projektets endelige validering.
 
 ## Testbetingelser
 
@@ -102,7 +104,9 @@ bruger nu 28.
   ikke en præcis værdi. Signalforhold og operatørens NAT kan ændre resultaterne.
 - Én enhed og ét net. LTE-M er ikke målt, fordi enheden er konfigureret til
   NB-IoT (#25).
-- Strøm, hvilket kræver PPK2, er ikke målt og mangler for at lukke #32.
+- Strømforbruget er ikke målt og følges i #99, som kræver PPK2. #32 omfatter
+  dataforbrug og leveringstid. Anbefalingen af batch hvert 5. minut er derfor
+  foreløbig, indtil den også er vurderet ud fra strømmålingerne.
 
 ## Gentag målingen
 
