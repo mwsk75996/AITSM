@@ -90,12 +90,12 @@ Listen føres løbende og bruges i rapporten.
 | LTE/NB-IoT, PSM | Med | Krav K6 og K13. |
 | MQTT over TLS, CA-provisionering | Med | Krav K7 og K8. |
 | SparkplugB NBIRTH/NDATA med nanopb | Med | Krav K9. |
-| Batching med fast buffer | Med | Krav K12. |
+| Batching med fast buffer | Med | Krav K12. Batchen slettes først efter PUBACK (kvittering), så målinger ikke tabes ved afbrud. |
 | Single-afsendelse som alternativ profil | Udeladt | Kun ét krav om lavt dataforbrug; batching dækker det. |
 | RGB-LED-status (`led_status.c`) | Udeladt | Ikke et krav; status ses i loggen. |
 | Dedikeret MQTT-workqueue og afsendelsestokens | Udeladt | Robusthed ud over kravene; Simple har én applikationstråd. |
 | PUBACK-timeout og genafsendelse med DUP-flag (#87) | Udeladt | Robusthed ud over kravene; QoS 1 og deduplikering i cloud er tilstrækkeligt. |
-| Eksponentiel reconnect-backoff (#76) | Forenklet | Fast ventetid før nyt forsøg. |
+| Eksponentiel reconnect-backoff (#76) | Med, forenklet | Backoff 5, 10, 20, 40 og højst 60 s, nulstilles ved forbindelse; uden Originals ekstra tilstandshåndtering. |
 | Måleværktøjer og profiler i `scripts/` | Udeladt | Bruges til målinger i Original; resultaterne gælder begge versioner. |
 | AT-shell-overlay | Udeladt | Kun til test og målinger. |
 
@@ -125,3 +125,12 @@ Listen føres løbende og bruges i rapporten.
    Skal det i Simple ligge i `mqtt_client.c` (færre filer, fordi kun MQTT
    bruger det) eller i et separat modul, fx `tls_credentials.c` (tydeligere
    ansvar, og det kan genbruges, hvis andet end MQTT får brug for TLS)?
+
+### Beslutninger
+
+Godkendt i [PR #100](https://github.com/mwsk75996/AITSM/pull/100):
+
+1. Modulopdelingen og trådmodellen ovenfor bruges.
+2. Batchen slettes først efter PUBACK (kvittering).
+3. Reconnect bruger simpel backoff (5, 10, 20, 40 og højst 60 s).
+4. CA-provisioneringen ligger i `mqtt_client.c`.
