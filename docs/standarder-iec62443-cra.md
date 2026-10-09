@@ -14,10 +14,10 @@ og kunne verificere afsenderens autenticitet.
 
 **Hvordan løsningen adresserer det:** Al telemetri sendes fra Thingy:91 X til
 cloud-broker'en over MQTT med TLS på port 8883
-(`app/src/mqtt_client.c`, `AITSM_MQTT_HOSTNAME`/port 8883 i
+(`Original/app/src/mqtt_client.c`, `AITSM_MQTT_HOSTNAME`/port 8883 i
 `aitsm_mqtt_init()`). CA-certifikatet provisioneres til modemets
 sikkerhedslager før forbindelsen oprettes
-(`app/src/mqtt_credentials_provision.c`, `modem_key_mgmt_write(...)`), så
+(`Original/app/src/mqtt_credentials_provision.c`, `modem_key_mgmt_write(...)`), så
 enheden kan verificere broker'ens certifikat under TLS-håndtrykket.
 Forbindelsen autentificeres derudover med brugernavn/password (`conn_params` i
 `mqtt_client.c`). Klient-id'et bruges som broker-identifikator, men er i den
@@ -61,7 +61,7 @@ LOG_ERR("MQTT-helper fejl: %d", error);
 LOG_ERR("MQTT-målepayload blev ikke bekræftet, message id: %u, resultat: %d", ...);
 ```
 
-(`app/src/mqtt_client.c`). Fejl propageres videre som events til
+(`Original/app/src/mqtt_client.c`). Fejl propageres videre som events til
 `app_controller.c`, som også kun logger koden, ikke en fortolket årsag.
 Dermed er der ikke nogen oplagt kilde til information, en angriber kunne
 bruge til at målrette et angreb (fx skelne "forkert login" fra "forkert
