@@ -38,7 +38,7 @@ west build -b thingy91x/nrf9151/ns -d build/thingy91x_nrf9151 app
 | `src/sparkplug.c` / `sparkplug.h` + `proto/` | SparkplugB v1.0-topics og protobuf-payloads (NBIRTH og NDATA) med nanopb. |
 | `prj.conf` / `Kconfig` | Måleinterval, batchstørrelse og de nødvendige NCS-subsystemer. |
 
-Modbus (#93) kommer bagefter. Selve Modbus-koden ligger på ESP32'en. På Thingy'en publicerer `src/modbus.c` / `modbus.h` en simpel MQTT-besked til den fælles broker; ESP32'en abonnerer på den via VPS'en og udfører Modbus RTU-skrivningen. Detaljerne fastlægges i #93.
+Modbus (#93) kommer bagefter. Selve Modbus-koden ligger på ESP32'en. På Thingy'en publicerer `src/modbus.c` / `modbus.h` en simpel MQTT-besked til den fælles broker; ESP32'en abonnerer på den via VPS'en og udfører Modbus RTU-skrivningen. **Foreløbigt:** løsningen skal godkendes af underviseren, før den vælges endeligt, fordi kravet nævner Zephyrs Modbus-API og dataopsamling; se #93.
 
 ### Tråde og synkronisering
 
