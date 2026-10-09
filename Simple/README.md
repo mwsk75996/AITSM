@@ -104,5 +104,24 @@ Listen føres løbende og bruges i rapporten.
 1. Er modulopdelingen og trådmodellen god nok til at forklare til eksamen?
 2. Skal batchen kun slettes efter PUBACK (kvittering), eller er det nok at sende den med
    QoS 1 og stole på broker og cloud?
-3. Skal reconnect være fast ventetid eller en simpel backoff?
-4. Skal CA-provisioneringen ligge i `mqtt_client.c` eller i et separat modul?
+3. Hvordan skal enheden forbinde igen, når MQTT-forbindelsen til brokeren
+   ryger (reconnect)?
+   - **Fast ventetid:** prøv igen efter fx 10 s, hver gang. Det er nemmest at
+     forklare, men hvis brokeren er nede længe, bruger enheden strøm og data
+     på mange forgæves forsøg.
+   - **Simpel backoff:** ventetiden fordobles efter hvert mislykket forsøg
+     (fx 5, 10, 20, 40 s) op til et loft på 60 s og nulstilles, når
+     forbindelsen lykkes. Det giver færre forsøg under længere udfald og er
+     det, Original gør (#76), men det er lidt mere kode.
+4. Hvor skal CA-provisioneringen ligge?
+
+   **CA-provisionering:** TLS-forbindelsen til brokeren kræver, at enheden kan
+   kontrollere brokerens certifikat. Det gør den med CA-certifikatet (Let's
+   Encrypts rodcertifikat i `app/certs/`). Ved opstart skriver firmwaren
+   certifikatet ind i modemmets sikre nøglelager under et `sec_tag` med
+   `modem_key_mgmt_write()`, og TLS-forbindelsen bruger det derefter. I
+   Original ligger det i `mqtt_credentials_provision.c`.
+
+   Skal det i Simple ligge i `mqtt_client.c` (færre filer, fordi kun MQTT
+   bruger det) eller i et separat modul, fx `tls_credentials.c` (tydeligere
+   ansvar, og det kan genbruges, hvis andet end MQTT får brug for TLS)?
