@@ -102,7 +102,7 @@ Listen føres løbende og bruges i rapporten.
 ## Til gennemgang i gruppen
 
 1. Er modulopdelingen og trådmodellen god nok til at forklare til eksamen?
-2. Skal batchen kun slettes efter PUBACK, eller er det nok at sende den med
+2. Skal batchen kun slettes efter PUBACK (kvittering), eller er det nok at sende den med
    QoS 1 og stole på broker og cloud?
 3. Skal reconnect være fast ventetid eller en simpel backoff?
 4. Skal CA-provisioneringen ligge i `mqtt_client.c` eller i et separat modul?
