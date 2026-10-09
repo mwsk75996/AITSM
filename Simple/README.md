@@ -38,7 +38,7 @@ west build -b thingy91x/nrf9151/ns -d build/thingy91x_nrf9151 app
 | `src/sparkplug.c` / `sparkplug.h` + `proto/` | SparkplugB v1.0-topics og protobuf-payloads (NBIRTH og NDATA) med nanopb. |
 | `prj.conf` / `Kconfig` | Måleinterval, batchstørrelse og de nødvendige NCS-subsystemer. |
 
-Modbus (#93) kommer bagefter. Det er endnu ikke afklaret, om det ligger på Thingy'en som `src/modbus.c` / `modbus.h` eller på ESP32'en; modul og K16 rettes, når valget er truffet i #93.
+Modbus (#93) kommer bagefter. Selve Modbus-koden ligger på ESP32'en. På Thingy'en publicerer `src/modbus.c` / `modbus.h` en simpel MQTT-besked til den fælles broker; ESP32'en abonnerer på den via VPS'en og udfører Modbus RTU-skrivningen. Detaljerne fastlægges i #93.
 
 ### Tråde og synkronisering
 
@@ -70,7 +70,7 @@ Modbus (#93) kommer bagefter. Det er endnu ikke afklaret, om det ligger på Thin
 | K13 | Lavt strømforbrug via sleep modes | `network.c` (PSM), måletråd (`k_sleep`) | Serial log: PSM tildelt; strømmåling med PPK2 (#99) |
 | K14 | Egen cloud server til dataopsamling | Fælles [`cloud/`](../cloud/) | Integrationstest: Thingy → broker → QuestDB |
 | K15 | Redegørelse for CRA og/eller IEC 62443 | Fælles [`docs/standarder-iec62443-cra.md`](../docs/standarder-iec62443-cra.md) | Dokumentation |
-| K16 | Modbus RTU/TCP-dataopsamling | Afklares i #93 (Thingy'en med `modbus.c` eller ESP32) | Fastlægges i #93 |
+| K16 | Modbus RTU/TCP-dataopsamling | `modbus.c` (MQTT-besked fra Thingy'en); Modbus RTU-master på ESP32 (#93) | Fastlægges i #93 |
 
 ### Tests
 
