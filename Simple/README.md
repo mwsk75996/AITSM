@@ -38,7 +38,7 @@ west build -b thingy91x/nrf9151/ns -d build/thingy91x_nrf9151 app
 | `src/sparkplug.c` / `sparkplug.h` + `proto/` | SparkplugB v1.0-topics og protobuf-payloads (NBIRTH og NDATA) med nanopb. |
 | `prj.conf` / `Kconfig` | Måleinterval, batchstørrelse og de nødvendige NCS-subsystemer. |
 
-Modbus (#93) kommer bagefter som `src/modbus.c` / `modbus.h`.
+Modbus (#93) kommer bagefter. Det er endnu ikke afklaret, om det ligger på Thingy'en som `src/modbus.c` / `modbus.h` eller på ESP32'en; modul og K16 rettes, når valget er truffet i #93.
 
 ### Tråde og synkronisering
 
@@ -70,7 +70,7 @@ Modbus (#93) kommer bagefter som `src/modbus.c` / `modbus.h`.
 | K13 | Lavt strømforbrug via sleep modes | `network.c` (PSM), måletråd (`k_sleep`) | Serial log: PSM tildelt; strømmåling med PPK2 (#99) |
 | K14 | Egen cloud server til dataopsamling | Fælles [`cloud/`](../cloud/) | Integrationstest: Thingy → broker → QuestDB |
 | K15 | Redegørelse for CRA og/eller IEC 62443 | Fælles [`docs/standarder-iec62443-cra.md`](../docs/standarder-iec62443-cra.md) | Dokumentation |
-| K16 | Modbus RTU/TCP-dataopsamling | `modbus.c` (#93) | Fastlægges i #93 |
+| K16 | Modbus RTU/TCP-dataopsamling | Afklares i #93 (Thingy'en med `modbus.c` eller ESP32) | Fastlægges i #93 |
 
 ### Tests
 
@@ -91,6 +91,7 @@ Listen føres løbende og bruges i rapporten.
 | MQTT over TLS, CA-provisionering | Med | Krav K7 og K8. |
 | SparkplugB NBIRTH/NDATA med nanopb | Med | Krav K9. |
 | Batching med fast buffer | Med | Krav K12. Batchen slettes først efter PUBACK (kvittering), så målinger ikke tabes ved afbrud. |
+| Målinger under udfald (#77) | Med | Målingerne fortsætter hvert 15. s og bliver i bufferen, til forbindelsen er tilbage. Er bufferen fuld, springes nye målinger over og tælles i loggen; intet overskrives. |
 | Single-afsendelse som alternativ profil | Udeladt | Kun ét krav om lavt dataforbrug; batching dækker det. |
 | RGB-LED-status (`led_status.c`) | Udeladt | Ikke et krav; status ses i loggen. |
 | Dedikeret MQTT-workqueue og afsendelsestokens | Udeladt | Robusthed ud over kravene; Simple har én applikationstråd. |
