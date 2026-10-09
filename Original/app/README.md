@@ -91,7 +91,7 @@ Mangler PUBACK efter en vellykket skrivning, sender MQTT-workeren samme
 payload og message-id igen med DUP-flag efter 30 s. Ventetiden fordobles til
 højst 300 s. ACK og disconnect annullerer timeren; nye målinger flytter ikke
 deadline. Genforsøg bevarer TLS-forbindelsen og kræver ingen ekstra MQTT-felter.
-Se [genforsøg og validering](../docs/puback-genforsoeg.md).
+Se [genforsøg og validering](../../docs/puback-genforsoeg.md).
 
 Ved MQTT-afbrud eller connect-fejl prøver controlleren igen efter 5, 10, 20,
 40 og højst 60 sekunder, så længe LTE er registreret. MQTT-CONNACK nulstiller
@@ -204,7 +204,7 @@ reboot/strømsvigt. Før UTC-tiden er gyldig gemmes ingen udaterede målinger.
 
 Dette vælger mulighed A i #77: lokal indsamling og buffering, med en tydelig
 grænse for tab. Det kræver ingen ekstra radioopkoblinger eller flash-skrivninger.
-Læs [beslutningen og valideringen](../docs/maalinger-under-udfald.md).
+Læs [beslutningen og valideringen](../../docs/maalinger-under-udfald.md).
 Dataforbrug og leveringstid behandles i #32. Strømmåling med PPK2 følges i #99.
 
 ## Strømbesparelse (#23)
@@ -257,7 +257,7 @@ tilføjer blandt andet LTE-modeopdateringer.
 
 ## Build
 
-Fra projektroden:
+Fra `Original/`:
 
 ```bash
 source scripts/activate-ncs.sh

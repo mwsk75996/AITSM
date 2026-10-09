@@ -73,7 +73,8 @@ jobs:
           # SparkplugB payloads are encoded with nanopb (#66).
           (cd "$RUNNER_TEMP/zephyr" && west update --narrow -o=--depth=1 nanopb)
 
-      - name: Kør native firmware-tests
+      - name: Kør native firmware-tests (Original)
+        working-directory: Original
         run: |
           python "$ZEPHYR_BASE/scripts/twister" \
             -p native_sim/native/64 \
@@ -87,9 +88,9 @@ jobs:
         with:
           name: twister-results
           path: |
-            twister-out/twister.json
-            twister-out/twister*.xml
-            twister-out/twister.log
-            twister-out/**/build.log
-            twister-out/**/handler.log
+            Original/twister-out/twister.json
+            Original/twister-out/twister*.xml
+            Original/twister-out/twister.log
+            Original/twister-out/**/build.log
+            Original/twister-out/**/handler.log
           if-no-files-found: warn

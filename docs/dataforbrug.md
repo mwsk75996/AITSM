@@ -12,12 +12,12 @@ men skal gennemføres inden projektets endelige validering.
 | --- | --- |
 | Dato | 2026-10-08 |
 | Enhed | Thingy:91 X (nRF9151), NB-IoT, roaming-net, stationær på indendørs bord |
-| Firmware | `main` efter PSM (#23) og SparkplugB (#66), bygget med `overlay-at-shell.conf` og profilens `.conf` fra `scripts/measurement-profiles/` |
+| Firmware | `main` efter PSM (#23) og SparkplugB (#66), bygget med `overlay-at-shell.conf` og profilens `.conf` fra `Original/scripts/measurement-profiles/` |
 | Måleinterval | 15 s i alle profiler |
 | PSM | TAU 4200 s, aktiv tid 10 s (tildelt af nettet) |
 | MQTT | TLS, QoS 1, keepalive 1200 s, SparkplugB NBIRTH + NDATA |
 | Dataopsamling | modemmets `AT%XCONNSTAT`, aktiveret før TLS-handshaket |
-| Metode | `scripts/measure-data-usage.py --profile <p> --minutes <n>` |
+| Metode | `Original/scripts/measure-data-usage.py --profile <p> --minutes <n>` |
 
 Tællerne tæller IP-data (inkl. TCP/IP, TLS og MQTT) i **hele kilobyte**, så
 tallene pr. time er et estimat med en usikkerhed på nogle få KB. Måleperioden
@@ -97,7 +97,7 @@ batch-intervallet (`now − første + måleinterval ≥ batch-interval`). Med en
 på 28 ville batchen ellers være blevet 21 målinger.
 
 Målingerne ovenfor er lavet med en buffer på 20; batchene var de samme (20
-målinger), så resultaterne gælder fortsat. `scripts/measurement-profiles/batch5.conf`
+målinger), så resultaterne gælder fortsat. `Original/scripts/measurement-profiles/batch5.conf`
 bruger nu 28.
 
 ## Begrænsninger
@@ -113,6 +113,7 @@ bruger nu 28.
 ## Gentag målingen
 
 ```bash
+cd Original
 source scripts/activate-ncs.sh
 west build -p -b thingy91x/nrf9151/ns -d build/measure-batch5 app -- \
   "-DEXTRA_CONF_FILE=overlay-at-shell.conf;$PWD/scripts/measurement-profiles/batch5.conf"
