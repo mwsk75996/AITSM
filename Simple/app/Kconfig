@@ -26,6 +26,14 @@ config AITSM_BATCH_CAPACITY
 	  PUBACK, or while the connection is down. A full buffer of 28
 	  measurements still fits in one message.
 
+config AITSM_LED
+	bool "Show the connection status on the RGB LED"
+	default y
+	help
+	  Blue: searching for the network. Green: on the network. Cyan:
+	  connected to the broker. White: waiting for PUBACK. Red: startup
+	  failed. Disable it when measuring power consumption.
+
 config AITSM_MQTT_HOSTNAME
 	string "MQTT broker hostname"
 	default "aitsm.vps.webdock.cloud"

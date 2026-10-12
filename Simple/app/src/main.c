@@ -7,6 +7,7 @@
 #include <date_time.h>
 
 #include "batch.h"
+#include "led.h"
 #include "mqtt_client.h"
 #include "network.h"
 #include "sensor.h"
@@ -249,6 +250,24 @@ static void publish_next(void)
 	}
 }
 
+/* The LED shows how far the device is: network, broker and sending. */
+static void update_led(void)
+{
+	if (awaiting_puback) {
+		/* White: a message is sent and waits for its PUBACK. */
+		aitsm_led_set(AITSM_LED_WHITE);
+	} else if (mqtt_state == MQTT_CONNECTED) {
+		/* Cyan: connected to the broker. */
+		aitsm_led_set(AITSM_LED_CYAN);
+	} else if (aitsm_network_is_connected()) {
+		/* Green: on the NB-IoT network, but not connected to the broker. */
+		aitsm_led_set(AITSM_LED_GREEN);
+	} else {
+		/* Blue: searching for the network. */
+		aitsm_led_set(AITSM_LED_BLUE);
+	}
+}
+
 /* Sleep until an event arrives, or until it is time for the next connection attempt. */
 static k_timeout_t next_wakeup(void)
 {
@@ -264,7 +283,10 @@ int main(void)
 
 	LOG_INF("AITSM Simple starter");
 
-	err = aitsm_network_init(network_handler);
+	err = aitsm_led_init();
+	if (err == 0) {
+		err = aitsm_network_init(network_handler);
+	}
 	if (err == 0) {
 		err = aitsm_sensor_init();
 	}
@@ -276,12 +298,17 @@ int main(void)
 	}
 	if (err != 0) {
 		LOG_ERR("Opstart fejlede: %d", err);
+		/* Red: the device could not start. */
+		aitsm_led_set(AITSM_LED_RED);
 		return err;
 	}
 
 	/* The main thread continues as the application thread. */
 	while (true) {
-		uint32_t events = k_event_wait_safe(&app_events, EVENT_ALL, false, next_wakeup());
+		uint32_t events;
+
+		update_led();
+		events = k_event_wait_safe(&app_events, EVENT_ALL, false, next_wakeup());
 
 		collect_measurements();
 		if ((events & EVENT_MQTT_PUBACK) != 0U) {

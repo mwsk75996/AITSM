@@ -12,8 +12,8 @@ er ingen separat cloud til Simple.
 > **Status (#92):** Modulerne og kravtabellen er godkendt af gruppen i
 > [PR #100](https://github.com/mwsk75996/AITSM/pull/100). Firmwaren bygger,
 > unit-testene består, og første integrationstest på Thingy'en er gennemført
-> (se [Verifikation](#verifikation)). Reconnect efter udfald er ikke testet på
-> hardware endnu.
+> (se [Verifikation](#verifikation)), også reconnect efter et udfald på
+> brokeren.
 
 ## Mappens indhold
 
@@ -54,6 +54,7 @@ Der bruges ingen devicetree-overlays; boardets standard-devicetree for
 | `src/mqtt_client.c` / `mqtt_client.h` | TLS-forbindelse til egen broker via `mqtt_helper`, provisionering af CA-certifikat og publish med QoS 1. |
 | `src/sensor.c` / `sensor.h` | Aflæser modemtemperatur, batterispænding og UTC-tid. Venter med et `k_sem` på, at netværket har leveret UTC-tid. |
 | `src/batch.c` / `batch.h` | Fast buffer med målinger, der sendes samlet. |
+| `src/led.c` / `led.h` | Viser status på RGB-LED'en med faste farver. Kan slås fra med `CONFIG_AITSM_LED=n`. |
 | `src/sparkplug.c` / `sparkplug.h` + `proto/` | SparkplugB v1.0-topics og protobuf-payloads (NBIRTH og NDATA) med nanopb. |
 | `prj.conf` / `Kconfig` | Måleinterval, batchstørrelse, bufferstørrelse, broker og de nødvendige NCS-subsystemer. |
 
@@ -71,6 +72,19 @@ Modbus (#93) kommer bagefter. Selve Modbus-koden ligger på ESP32'en. På Thingy
   egne tråde. De gemmer kun en status og vækker applikationstråden med
   `k_event_post()`.
 - Batchbufferen bruges kun fra applikationstråden og har derfor ingen lås.
+
+### LED-farver
+
+| Farve | Betydning |
+| --- | --- |
+| Blå | Søger efter netværk. |
+| Grøn | På NB-IoT-netværket, men ikke forbundet til brokeren. |
+| Cyan | Forbundet til brokeren. |
+| Hvid | En besked er sendt og venter på PUBACK. |
+| Rød | Opstarten fejlede. |
+
+Farven vælges ét sted, i `update_led()` i `main.c`, ud fra applikationstrådens
+tilstand.
 
 ### Forløb
 
@@ -132,6 +146,19 @@ Kørt 12-10-2026 på Thingy:91 X mod den fælles broker:
 - QuestDB: 20 rækker fra 07:41:26 til 07:46:10 UTC med 15 s mellem rækkerne
   (14 s mellem de to første, hvor uret lige var sat) og ingen dubletter.
 
+Reconnect, samme dag: Mosquitto blev stoppet i 80 s, lige før en batch skulle
+sendes.
+
+- NDATA med 20 målinger blev sendt, men fik ingen PUBACK. Forbindelsen blev
+  lukket efter 6 s, og målingerne blev i bufferen.
+- Nye forsøg efter 5, 10, 20 og 40 s. De tre første fejlede, det fjerde
+  lykkedes, da brokeren var oppe igen.
+- Målingerne fortsatte hvert 15. sekund under udfaldet (måling 21-26).
+- Efter reconnect: NBIRTH med `bdSeq` 1, derefter én NDATA med alle 26
+  målinger (1517 bytes, `seq` 1), bekræftet med PUBACK.
+- QuestDB: 26 rækker fra 07:51:25 til 07:57:40 UTC, ingen huller og ingen
+  dubletter.
+
 ## Taget med og bevidst udeladt
 
 Listen føres løbende og bruges i rapporten.
@@ -144,7 +171,7 @@ Listen føres løbende og bruges i rapporten.
 | Batching med fast buffer | Med | Krav K12. Batchen slettes først efter PUBACK (kvittering), så målinger ikke tabes ved afbrud. |
 | Målinger under udfald (#77) | Med | Målingerne fortsætter hvert 15. s og bliver i bufferen, til forbindelsen er tilbage. Er bufferen fuld, springes nye målinger over og tælles i loggen; intet overskrives. |
 | Single-afsendelse som alternativ profil | Udeladt | Kun ét krav om lavt dataforbrug; batching dækker det. |
-| RGB-LED-status (`led_status.c`) | Udeladt | Ikke et krav; status ses i loggen. |
+| RGB-LED-status (`led_status.c`) | Med, forenklet | Ikke et krav, men gør det nemt at se status uden serial log. Faste farver uden blink og timere; slås fra med `CONFIG_AITSM_LED=n` ved strømmåling. |
 | Dedikeret MQTT-workqueue og afsendelsestokens | Udeladt | Robusthed ud over kravene; Simple har én applikationstråd. |
 | PUBACK-timeout og genafsendelse med DUP-flag (#87) | Udeladt | Robusthed ud over kravene; QoS 1 og deduplikering i cloud er tilstrækkeligt. |
 | Eksponentiel reconnect-backoff (#76) | Med, forenklet | Backoff 5, 10, 20, 40 og højst 60 s, nulstilles ved forbindelse; uden Originals ekstra tilstandshåndtering. |

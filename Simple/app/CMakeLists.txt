@@ -39,6 +39,7 @@ target_sources(app PRIVATE
 	src/mqtt_client.c
 	src/sensor.c
 	src/batch.c
+	src/led.c
 	src/sparkplug.c
 	proto/sparkplug_b.pb.c
 )
