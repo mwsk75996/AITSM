@@ -8,7 +8,7 @@ Denne rapport beskriver testen af hele kæden fra sensor over databehandling, ba
 |---|---|
 | Dato | 2026-09-23, 10:09–11:03 UTC |
 | Enhed | Nordic Thingy:91 X (`THINGY91X_0ABA4D24A1A`) over USB-C |
-| Firmware | Applikationskode fra `main` (`084c779`), bygget med [`app/overlay-at-shell.conf`](../app/overlay-at-shell.conf) |
+| Firmware | Applikationskode fra `main` (`084c779`), bygget med [`Original/app/overlay-at-shell.conf`](../Original/app/overlay-at-shell.conf) |
 | Profil | Batch, måling hvert 15. s, maks. 20 målinger / 300 s pr. batch, QoS 1 |
 | Modemfirmware | `mfw_nrf91x1_2.0.2` |
 | Netværk | NB-IoT, roaming på PLMN 238-01, bånd 20 |
@@ -23,7 +23,7 @@ Denne rapport beskriver testen af hele kæden fra sensor over databehandling, ba
 - For hvert tidsvindue blev hver `Måling indsamlet`-linje i loggen sammenlignet med rækkerne i `sensor_readings` for `device_id = 'thingy91x'`. Sammenligningen omfatter antal, rækkefølge, temperatur, batteri og tidsforskel, samt huller over 20 s og dubletter.
 - Indgreb på VPS'en (genstart af Mosquitto, stop af ingest) blev udført med `systemctl` over SSH.
 
-Build og flash af testfirmwaren:
+Build og flash af testfirmwaren (fra `Original/`):
 
 ```bash
 west build -b thingy91x/nrf9151/ns -d build/thingy91x_at_shell app \
@@ -91,11 +91,11 @@ Produktionstabellen havde ingen dubletter (3160 rækker, 3160 unikke). Løsninge
 
 ### 7. Payload-grænse
 
-Dækket af unit tests i `tests/data_transmission` (se [`tests/README.md`](../tests/README.md)). Worst-case-testen viste, at Kconfig tillader kombinationer, hvor en fuld batch ikke kan sendes, f.eks. 64 målinger med 2048 bytes (#79).
+Dækket af unit tests i `Original/tests/data_transmission` (se [`Original/tests/README.md`](../Original/tests/README.md)). Worst-case-testen viste, at Kconfig tillader kombinationer, hvor en fuld batch ikke kan sendes, f.eks. 64 målinger med 2048 bytes (#79).
 
 ## Automatiserede tests
 
-- `west twister -p native_sim/native/64 -T tests/data_transmission -T tests/led_status`: 14/14 bestået.
+- Fra `Original/`: `west twister -p native_sim/native/64 -T tests/data_transmission -T tests/led_status`: 14/14 bestået.
 - `cloud/mqtt`: `pytest`: 51/51 bestået.
 
 GitHub Actions-workflowet [`Tests`](../.github/workflows/tests.yml) kører pytest og native Twister-tests på PR'er mod `main` og push til `main`. CI bruger Python 3.12, Nordic-toolchainen til NCS v3.4.0 og Zephyr fra `ncs-v3.4.0`. Hardwaretests og build-only-testen `nb_iot_config` køres separat og er ikke dækket af dette workflow.
