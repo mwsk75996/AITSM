@@ -10,8 +10,10 @@ QuestDB) og samme SparkplugB-format som [Original](../Original/README.md). Der
 er ingen separat cloud til Simple.
 
 > **Status (#92):** Modulerne og kravtabellen er godkendt af gruppen i
-> [PR #100](https://github.com/mwsk75996/AITSM/pull/100). Firmwaren bygger, og
-> unit-testene består. Integrationstesten på Thingy'en mangler.
+> [PR #100](https://github.com/mwsk75996/AITSM/pull/100). Firmwaren bygger,
+> unit-testene består, og første integrationstest på Thingy'en er gennemført
+> (se [Verifikation](#verifikation)). Reconnect efter udfald er ikke testet på
+> hardware endnu.
 
 ## Mappens indhold
 
@@ -116,6 +118,19 @@ Modbus (#93) kommer bagefter. Selve Modbus-koden ligger på ESP32'en. På Thingy
 - Integrationstest: Simple kører på Thingy'en mod den fælles broker, og
   QuestDB-tabellen `sensor_readings` kontrolleres for antal rækker, interval og
   dubletter i et fast tidsvindue.
+
+### Verifikation
+
+Kørt 12-10-2026 på Thingy:91 X mod den fælles broker:
+
+- Serial log: registreret på NB-IoT, PSM tildelt (TAU 4200 s, aktiv tid 10 s),
+  forbundet over TLS efter 16 s, NBIRTH bekræftet, måling hvert 15. sekund.
+- Første NDATA: 20 målinger, 1169 bytes, `seq` 1, PUBACK efter 6 s. Derefter
+  blev de 20 målinger fjernet fra bufferen.
+- Ingest: `Sparkplug B NDATA from thingy91x seq=1 with 20 reading(s)` og
+  `Stored 20 telemetry row(s)`.
+- QuestDB: 20 rækker fra 07:41:26 til 07:46:10 UTC med 15 s mellem rækkerne
+  (14 s mellem de to første, hvor uret lige var sat) og ingen dubletter.
 
 ## Taget med og bevidst udeladt
 
