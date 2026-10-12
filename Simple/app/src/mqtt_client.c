@@ -119,6 +119,11 @@ int aitsm_mqtt_connect(void)
 	return err;
 }
 
+int aitsm_mqtt_disconnect(void)
+{
+	return mqtt_helper_disconnect();
+}
+
 int aitsm_mqtt_publish(const char *topic, const uint8_t *payload, size_t length)
 {
 	struct mqtt_publish_param param = {

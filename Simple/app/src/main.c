@@ -30,6 +30,8 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 #define RECONNECT_INITIAL_SECONDS 5
 #define RECONNECT_MAX_SECONDS 60
+/* A PUBACK normally arrives within 10 seconds on NB-IoT. */
+#define PUBACK_TIMEOUT_SECONDS 120
 
 #define TOPIC_SIZE 64
 #define PAYLOAD_SIZE                                                                               \
@@ -40,6 +42,7 @@ enum mqtt_state {
 	MQTT_IDLE,
 	MQTT_CONNECTING,
 	MQTT_CONNECTED,
+	MQTT_DISCONNECTING,
 };
 
 static K_EVENT_DEFINE(app_events);
@@ -55,6 +58,7 @@ static bool birth_acknowledged;
 static uint8_t bd_seq;
 static uint8_t seq;
 static bool awaiting_puback;
+static int64_t puback_deadline_ms;
 /* Number of measurements in the NDATA that waits for its PUBACK. */
 static size_t sent_count;
 static uint32_t skipped_measurements;
@@ -167,6 +171,26 @@ static void schedule_reconnect(void)
 	reconnect_delay_seconds = MIN(reconnect_delay_seconds * 2U, RECONNECT_MAX_SECONDS);
 }
 
+/*
+ * A connection can be dead without the modem reporting an error. A missing
+ * PUBACK is the sign: close the connection, so the normal reconnect takes over
+ * and the batch is sent again.
+ */
+static void check_puback_timeout(void)
+{
+	if (!awaiting_puback || k_uptime_get() < puback_deadline_ms) {
+		return;
+	}
+
+	LOG_WRN("Ingen PUBACK efter %d s; lukker MQTT-forbindelsen", PUBACK_TIMEOUT_SECONDS);
+	awaiting_puback = false;
+	mqtt_state = MQTT_DISCONNECTING;
+	if (aitsm_mqtt_disconnect() != 0) {
+		/* Nothing to close, so no callback will come; continue as disconnected. */
+		k_event_post(&app_events, EVENT_MQTT_DISCONNECTED);
+	}
+}
+
 static void update_connection(uint32_t events)
 {
 	if ((events & EVENT_MQTT_CONNECTED) != 0U && mqtt_state == MQTT_CONNECTING) {
@@ -203,6 +227,7 @@ static int publish(enum aitsm_sparkplug_message_type type, size_t length)
 	}
 	if (err == 0) {
 		awaiting_puback = true;
+		puback_deadline_ms = k_uptime_get() + PUBACK_TIMEOUT_SECONDS * MSEC_PER_SEC;
 	}
 	return err;
 }
@@ -268,9 +293,12 @@ static void update_led(void)
 	}
 }
 
-/* Sleep until an event arrives, or until it is time for the next connection attempt. */
+/* Sleep until an event arrives, a PUBACK is overdue or the next connection attempt is due. */
 static k_timeout_t next_wakeup(void)
 {
+	if (awaiting_puback) {
+		return K_TIMEOUT_ABS_MS(puback_deadline_ms);
+	}
 	if (mqtt_state == MQTT_IDLE && aitsm_network_is_connected()) {
 		return K_TIMEOUT_ABS_MS(reconnect_at_ms);
 	}
@@ -314,6 +342,7 @@ int main(void)
 		if ((events & EVENT_MQTT_PUBACK) != 0U) {
 			handle_puback();
 		}
+		check_puback_timeout();
 		update_connection(events);
 		publish_next();
 	}

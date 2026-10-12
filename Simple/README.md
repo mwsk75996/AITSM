@@ -94,7 +94,8 @@ tilstand.
    og sender NBIRTH. Måletråden starter, når UTC-tiden er modtaget.
 3. Hver måling lægges i batchen. Ved 20 målinger (`CONFIG_AITSM_BATCH_SIZE`)
    sendes de samlet som én NDATA med QoS 1.
-4. Batchen bliver i bufferen, til brokeren har svaret med PUBACK. Bufferen har
+4. Batchen bliver i bufferen, til brokeren har svaret med PUBACK. Kommer
+   svaret ikke inden 120 s, lukkes forbindelsen, og punkt 5 tager over. Bufferen har
    plads til 28 målinger (`CONFIG_AITSM_BATCH_CAPACITY`), så nye målinger kan
    gemmes imens.
 5. Ryger forbindelsen, fortsætter målingerne. Applikationstråden prøver igen
@@ -159,6 +160,22 @@ sendes.
 - QuestDB: 26 rækker fra 07:51:25 til 07:57:40 UTC, ingen huller og ingen
   dubletter.
 
+Død forbindelse, samme dag: efter knap 4 timers drift døde forbindelsen, uden
+at modemmet meldte fejl. Den første version ventede derefter for evigt på en
+PUBACK, fordi MQTT-biblioteket sender keepalive-ping, men ikke lukker
+forbindelsen, når svaret udebliver. Derfor blev PUBACK-timeouten på 120 s
+tilføjet. Den blev testet ved at droppe Thingy'ens pakker i VPS'ens firewall i
+230 s omkring en batch:
+
+- NDATA med 20 målinger blev sendt uden PUBACK. Efter 120 s lukkede Simple
+  forbindelsen og gik i gang med reconnect.
+- To forsøg fejlede (efter 5 og 10 s ventetid), det tredje lykkedes, da
+  blokeringen var fjernet.
+- Efter reconnect: NBIRTH med `bdSeq` 1 og én NDATA med 28 målinger (1633
+  bytes), bekræftet efter 2 s.
+- Bufferen blev fuld undervejs, og 7 målinger blev sprunget over og talt i
+  loggen. Bufferen rækker til ca. 2 minutters udfald ud over en ventende batch.
+
 ## Taget med og bevidst udeladt
 
 Listen føres løbende og bruges i rapporten.
@@ -173,7 +190,7 @@ Listen føres løbende og bruges i rapporten.
 | Single-afsendelse som alternativ profil | Udeladt | Kun ét krav om lavt dataforbrug; batching dækker det. |
 | RGB-LED-status (`led_status.c`) | Med, forenklet | Ikke et krav, men gør det nemt at se status uden serial log. Faste farver uden blink og timere; slås fra med `CONFIG_AITSM_LED=n` ved strømmåling. |
 | Dedikeret MQTT-workqueue og afsendelsestokens | Udeladt | Robusthed ud over kravene; Simple har én applikationstråd. |
-| PUBACK-timeout og genafsendelse med DUP-flag (#87) | Udeladt | Robusthed ud over kravene; QoS 1 og deduplikering i cloud er tilstrækkeligt. |
+| PUBACK-timeout og genafsendelse med DUP-flag (#87) | Med, forenklet | Kommer der ingen PUBACK inden 120 s, lukkes forbindelsen, og batchen sendes igen efter reconnect. Ingen genafsendelse med DUP-flag på samme forbindelse; cloud fjerner dubletter. Nødvendigt, fordi en død forbindelse ellers ikke opdages (se Verifikation). |
 | Eksponentiel reconnect-backoff (#76) | Med, forenklet | Backoff 5, 10, 20, 40 og højst 60 s, nulstilles ved forbindelse; uden Originals ekstra tilstandshåndtering. |
 | Måleværktøjer og profiler i `scripts/` | Udeladt | Bruges til målinger i Original; resultaterne gælder begge versioner. |
 | AT-shell-overlay | Udeladt | Kun til test og målinger. |

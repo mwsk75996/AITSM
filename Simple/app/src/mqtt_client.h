@@ -31,6 +31,12 @@ int aitsm_mqtt_init(aitsm_mqtt_handler_t handler);
 int aitsm_mqtt_connect(void);
 
 /**
+ * Close the connection. The result is reported to the handler as DISCONNECTED
+ * when 0 is returned; otherwise there was no connection to close.
+ */
+int aitsm_mqtt_disconnect(void);
+
+/**
  * Publish a message with QoS 1. Only one message can wait for its PUBACK at a
  * time; the acknowledgement is reported to the handler as PUBACK.
  */
