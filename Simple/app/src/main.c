@@ -257,14 +257,14 @@ static void update_led(void)
 		/* White: a message is sent and waits for its PUBACK. */
 		aitsm_led_set(AITSM_LED_WHITE);
 	} else if (mqtt_state == MQTT_CONNECTED) {
-		/* Cyan: connected to the broker. */
-		aitsm_led_set(AITSM_LED_CYAN);
-	} else if (aitsm_network_is_connected()) {
-		/* Green: on the NB-IoT network, but not connected to the broker. */
+		/* Green: connected to the broker. */
 		aitsm_led_set(AITSM_LED_GREEN);
-	} else {
-		/* Blue: searching for the network. */
+	} else if (aitsm_network_is_connected()) {
+		/* Blue: on the NB-IoT network, but not connected to the broker. */
 		aitsm_led_set(AITSM_LED_BLUE);
+	} else {
+		/* Yellow: searching for the network. */
+		aitsm_led_set(AITSM_LED_YELLOW);
 	}
 }
 

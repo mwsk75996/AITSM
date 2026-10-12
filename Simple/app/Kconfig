@@ -30,7 +30,7 @@ config AITSM_LED
 	bool "Show the connection status on the RGB LED"
 	default y
 	help
-	  Blue: searching for the network. Green: on the network. Cyan:
+	  Yellow: searching for the network. Blue: on the network. Green:
 	  connected to the broker. White: waiting for PUBACK. Red: startup
 	  failed. Disable it when measuring power consumption.
 

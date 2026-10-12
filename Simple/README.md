@@ -77,9 +77,9 @@ Modbus (#93) kommer bagefter. Selve Modbus-koden ligger på ESP32'en. På Thingy
 
 | Farve | Betydning |
 | --- | --- |
-| Blå | Søger efter netværk. |
-| Grøn | På NB-IoT-netværket, men ikke forbundet til brokeren. |
-| Cyan | Forbundet til brokeren. |
+| Gul | Søger efter netværk. |
+| Blå | På NB-IoT-netværket, men ikke forbundet til brokeren. |
+| Grøn | Forbundet til brokeren. |
 | Hvid | En besked er sendt og venter på PUBACK. |
 | Rød | Opstarten fejlede. |
 

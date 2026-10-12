@@ -40,9 +40,10 @@ void aitsm_led_set(enum aitsm_led_color color)
 		color = AITSM_LED_OFF;
 	}
 
-	set_channel(&red_led, color == AITSM_LED_RED || color == AITSM_LED_WHITE);
-	set_channel(&green_led, color == AITSM_LED_GREEN || color == AITSM_LED_CYAN ||
+	/* Yellow is red and green together; white is all three. */
+	set_channel(&red_led, color == AITSM_LED_RED || color == AITSM_LED_YELLOW ||
+				      color == AITSM_LED_WHITE);
+	set_channel(&green_led, color == AITSM_LED_GREEN || color == AITSM_LED_YELLOW ||
 					color == AITSM_LED_WHITE);
-	set_channel(&blue_led, color == AITSM_LED_BLUE || color == AITSM_LED_CYAN ||
-				       color == AITSM_LED_WHITE);
+	set_channel(&blue_led, color == AITSM_LED_BLUE || color == AITSM_LED_WHITE);
 }
