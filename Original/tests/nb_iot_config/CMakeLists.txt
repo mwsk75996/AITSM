@@ -8,11 +8,13 @@ set(CONF_FILE ${AITSM_APP_DIR}/prj.conf)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(aitsm_nb_iot_config_test)
 
-target_include_directories(app PRIVATE ${AITSM_APP_DIR}/include)
+target_include_directories(app PRIVATE ${AITSM_APP_DIR}/include ${AITSM_APP_DIR}/proto)
 target_sources(app PRIVATE
 	${AITSM_APP_DIR}/src/main.c
 	${AITSM_APP_DIR}/src/app_controller.c
 	${AITSM_APP_DIR}/src/data_transmission.c
+	${AITSM_APP_DIR}/src/sparkplug.c
+	${AITSM_APP_DIR}/proto/sparkplug_b.pb.c
 	${AITSM_APP_DIR}/src/measurement_service.c
 	${AITSM_APP_DIR}/src/measurement_source.c
 	${AITSM_APP_DIR}/src/led_status.c

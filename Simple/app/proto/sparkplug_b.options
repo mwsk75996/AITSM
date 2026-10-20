@@ -1,0 +1,5 @@
+org.eclipse.tahu.protobuf.Payload.metrics type:FT_CALLBACK
+org.eclipse.tahu.protobuf.Payload.uuid type:FT_IGNORE
+org.eclipse.tahu.protobuf.Payload.body type:FT_IGNORE
+org.eclipse.tahu.protobuf.Payload.Metric.name max_size:24
+org.eclipse.tahu.protobuf.Payload.Metric.string_value type:FT_IGNORE

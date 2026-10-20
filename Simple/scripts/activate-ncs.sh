@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Activate the pinned nRF Connect SDK environment for AITSM Engineering ApS.
-# Usage from the project root: source scripts/activate-ncs.sh
+# Usage from the version folder (e.g. Simple/): source scripts/activate-ncs.sh
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "Source this script instead: source scripts/activate-ncs.sh" >&2

@@ -17,11 +17,13 @@ Nginx-wrapper eller broker-konfigurationen. Sudoers valideres med `visudo`.
 root-ejet uden skriverettigheder til deploy-kontoen. Wrapperen accepterer kun
 en `/tmp/aitsm-ingest.XXXXXX`-mappe med et regulært `ingest.py` og eventuelt
 `--verify-outage`. Den kører den installerede helper, aldrig et uploadet
-Python-helpermodul som root. Helperen kan kun ændre scriptet fra den faste
-`projekt-c-ingest`-service og genstarte netop den service. Udfaldstesten opretter desuden en
-transient sikkerhedstimer, som kun starter samme service efter syv minutter;
+Python-helpermodul som root. Helperen kan kun ændre den faste fil
+`/var/www/html/projekt-c/cloud/mqtt/ingest.py` og genstarte `ingest`-servicen i
+`/opt/aitsm/docker/compose.yml`. Udfaldstesten opretter desuden en
+transient sikkerhedstimer, som kun starter samme container efter syv minutter;
 den slettes igen efter vellykket genstart. Uploadet kode bliver
-kørt som servicens konfigurerede bruger; adgang til denne wrapper er derfor
+kørt i ingest-containeren som `projektc` (995:986) uden capabilities og kun på
+det interne Docker-netværk; adgang til denne wrapper er derfor
 adgang til at deploye ingest-applikationen.
 
 Workflowet bruger wrapperen med `sudo -n`. Indtil administrator har installeret

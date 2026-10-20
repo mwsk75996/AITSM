@@ -1,7 +1,8 @@
 # Local project credentials
 /project_context/.vps-credentials.env
-/build/
-/twister-out/
+# Firmware build and test output (root, Original/ and Simple/)
+build/
+twister-out*/
 
 # Python
 __pycache__/

@@ -1,7 +1,7 @@
 # Tests
 
 Automatiserede tests til AITSM-firmwaren. Testsne køres med Twister fra
-projektroden:
+`Original/`:
 
 ```bash
 source scripts/activate-ncs.sh
@@ -10,7 +10,7 @@ west twister -p thingy91x/nrf9151/ns -T tests
 
 ## CI
 
-GitHub Actions-workflowet [`Tests`](../.github/workflows/tests.yml) kører automatisk på PR'er mod `main` og push til `main`. Det kan også startes manuelt:
+GitHub Actions-workflowet [`Tests`](../../.github/workflows/tests.yml) kører automatisk på PR'er mod `main` og push til `main`. Det kan også startes manuelt:
 
 - `MQTT-ingest (pytest)`: ingest-tests med Python 3.12.
 - `Firmware (Twister)`: `data_transmission` (batch og single), `led_status`, `mqtt_client`, `mqtt_reconnect`, `app_controller` og `measurement_service` på `native_sim/native/64`, med Nordic-toolchainen til NCS v3.4.0 og Zephyr fra `ncs-v3.4.0`.
@@ -123,7 +123,7 @@ Pytest-tests af MQTT-til-QuestDB-broen `cloud/mqtt/ingest.py`: timestamp-
 parsing, validering af værdier, line protocol-escaping, single- og
 batchpayloads i præcis det format firmwaren sender, samt at ugyldige beskeder
 og QuestDB-fejl afvises uden at servicen crasher. Testene kræver hverken broker
-eller QuestDB:
+eller QuestDB og køres fra projektroden:
 
 ```bash
 cd cloud/mqtt

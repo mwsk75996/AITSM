@@ -1,0 +1,60 @@
+# MQTT-broker, QuestDB og ingest på VPS'en. Nginx og PHP-FPM kører på
+# værten; api.php læser QuestDB via 127.0.0.1:9000.
+name: aitsm
+
+services:
+  mosquitto:
+    # Samme image som CI (ingest-session.yml).
+    image: eclipse-mosquitto:2.0.22@sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21
+    # Værtens mosquitto-bruger, så passwd, acl og certs kan læses uden ændrede rettigheder.
+    user: "113:116"
+    restart: unless-stopped
+    networks: [edge, backend]
+    ports:
+      - "8883:8883"            # MQTT over TLS fra Thingy:91 X
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - /etc/mosquitto:/etc/mosquitto:ro   # passwd, acl og certs (certbot-hook)
+      - /var/lib/mosquitto:/mosquitto/data # persistence: vedvarende ingest-session
+
+  questdb:
+    # Samme image som CI (questdb-dedup.yml).
+    image: questdb/questdb:10.0.1@sha256:67eaed863ebb2383227919ea9a5499a4a39ceca3862c20b974c84a10e11cdf89
+    user: "997:987"
+    restart: unless-stopped
+    networks: [edge, backend]
+    environment:
+      JVM_PREPEND: "-Xms128m -Xmx512m"
+      # server.conf binder til 127.0.0.1, som i en container kun er containeren selv.
+      QDB_HTTP_NET_BIND_TO: "0.0.0.0:9000"
+    ports:
+      - "127.0.0.1:9000:9000"  # kun lokalt, til api.php og verifikationsscripts
+    volumes:
+      - /var/lib/questdb:/var/lib/questdb
+
+  ingest:
+    build: ./ingest
+    image: aitsm-ingest:local
+    user: "995:986"            # værtens projektc-bruger, ejer af ingest.py
+    restart: unless-stopped
+    # Python som PID 1 ignorerer SIGTERM; tini videresender det, så stop ikke
+    # venter 10 s på SIGKILL.
+    init: true
+    # Kun det interne netværk: ingen udgivne porte og ingen adgang til internettet.
+    networks: [backend]
+    env_file: /etc/projekt-c/mqtt.env
+    environment:
+      MQTT_HOST: mosquitto
+      QUESTDB_WRITE_URL: http://questdb:9000/write
+    volumes:
+      # Mappen og ikke kun filen, så en atomisk udskiftning af ingest.py ses ved genstart.
+      - /var/www/html/projekt-c/cloud/mqtt:/app:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on: [mosquitto, questdb]
+
+networks:
+  edge: {}
+  backend:
+    internal: true

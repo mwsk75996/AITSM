@@ -9,9 +9,11 @@ import signal
 import time
 
 import questdb_schema as schema
+from deploy_ingest import COMPOSE, SERVICE, is_running
 
-SERVICE = "projekt-c-ingest"
 RESTORE_UNIT = "aitsm-ingest-test-restore"
+# The broker runs in Docker; see cloud/docker/README.md.
+BROKER_CONFIG = Path("/opt/aitsm/docker/mosquitto/mosquitto.conf")
 
 
 @contextmanager
@@ -20,7 +22,7 @@ def restore_ingest():
     # even when Python cannot execute finally (SIGKILL or runner cancellation).
     subprocess.run(["systemd-run", "--quiet", "--collect", f"--unit={RESTORE_UNIT}",
                     "--on-active=420s", "--timer-property=AccuracySec=1s",
-                    "/usr/bin/systemctl", "start", SERVICE], check=True)
+                    *COMPOSE, "start", SERVICE], check=True)
     previous = {}
     def interrupted(signum, frame):
         raise InterruptedError("Udfaldstest afbrudt; genstarter ingest")
@@ -30,7 +32,7 @@ def restore_ingest():
         yield
     finally:
         try:
-            subprocess.run(["systemctl", "start", SERVICE], check=True)
+            subprocess.run([*COMPOSE, "start", SERVICE], check=True)
             # Cancel only after a successful start. Failed restart must leave
             # the independent safety timer armed.
             subprocess.run(["systemctl", "stop", RESTORE_UNIT + ".timer"], check=True)
@@ -43,23 +45,22 @@ def seconds(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
 
-def broker_limits(config_dir=Path("/etc/mosquitto")):
+def broker_limits(config=BROKER_CONFIG):
     # Inspect only retention directives; never log credentials, ACLs or keys.
     allowed = {"persistence", "max_queued_messages", "max_queued_bytes", "persistent_client_expiration",
                "autosave_interval", "per_listener_settings"}
-    for path in [config_dir / "mosquitto.conf", *sorted((config_dir / "conf.d").glob("*.conf"))]:
-        for line in path.read_text().splitlines():
-            parts = line.split()
-            if parts and parts[0] in allowed:
-                print(f"Mosquitto {parts[0]}={' '.join(parts[1:])}", flush=True)
-                if parts[0] == "per_listener_settings" and parts[1:] == ["true"]:
-                    # Mosquitto 2.0 denies the ACL check for offline clients
-                    # in this mode, so the outage batch would be dropped.
-                    raise RuntimeError("per_listener_settings true: Mosquitto køer ikke til offline ingest")
+    for line in config.read_text().splitlines():
+        parts = line.split()
+        if parts and parts[0] in allowed:
+            print(f"Mosquitto {parts[0]}={' '.join(parts[1:])}", flush=True)
+            if parts[0] == "per_listener_settings" and parts[1:] == ["true"]:
+                # Mosquitto 2.0 denies the ACL check for offline clients
+                # in this mode, so the outage batch would be dropped.
+                raise RuntimeError("per_listener_settings true: Mosquitto køer ikke til offline ingest")
 
 
 def verify():
-    subprocess.run(["systemctl", "is-active", "--quiet", SERVICE], check=True)
+    subprocess.run(is_running(), check=True)
     broker_limits()
     latest = schema.query("SELECT timestamp FROM sensor_readings WHERE device_id='thingy91x' ORDER BY timestamp DESC LIMIT 1")
     if not latest or time.time() - seconds(latest[0]["timestamp"]) > 600:
@@ -70,7 +71,7 @@ def verify():
     stopped = time.time()
     print(f"Stopper ingest i 360 s; seneste måling {last}", flush=True)
     with restore_ingest():
-        subprocess.run(["systemctl", "stop", SERVICE], check=True)
+        subprocess.run([*COMPOSE, "stop", SERVICE], check=True)
         for elapsed in range(0, 360, 30):
             time.sleep(30)
             print(f"Ingest stoppet: {elapsed + 30}/360 s", flush=True)
@@ -85,7 +86,7 @@ def verify():
                 raise RuntimeError("Huller eller dubletter i standardprofilens 15 s-målinger")
             if any(row["temperature"] is None or row["battery"] is None for row in rows):
                 raise RuntimeError("Genleverede målinger mangler sensorværdier")
-            subprocess.run(["systemctl", "is-active", "--quiet", SERVICE], check=True)
+            subprocess.run(is_running(), check=True)
             print(f"BESTÅET: {len(rows)} målinger efter ingest-genstart, 15 s mellem alle rækker", flush=True)
             print("GENLEVERET_JSON=" + json.dumps(rows, separators=(",", ":")), flush=True)
             return

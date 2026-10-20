@@ -12,8 +12,16 @@
 - Alle commitbeskeder skal skrives på dansk.
 - Alle pull requests (PRs), herunder titel, beskrivelse og kommentarer, skal skrives på dansk.
 - Issues, review-kommentarer og anden Git-relateret kommunikation skal skrives på dansk.
+- Issuetitler skal have et prefix for den version, de vedrører: `[Original]` for `Original/` og `[Simple]` for `Simple/`. Issues, der vedrører begge versioner eller fælles cloud/docs, får begge prefixes: `[Original] [Simple]`.
 - Kode, filnavne og tekniske identifikatorer må fortsat bruge engelsk, når det er den naturlige konvention.
 - AI-agenter må ikke tilføje sig selv som coauthor på commits, pull requests, issues eller anden Git-relateret kommunikation. Der må ikke bruges `Co-authored-by`-trailere eller lignende AI-attribution.
+
+## Projektstruktur
+
+- Repositoryet har to firmwareversioner: `Original/` (fuld firmware og laboratorium) og `Simple/` (forenklet afleveringsversion). Hver har sin egen `app/`, `tests/` og `scripts/`.
+- `cloud/`, `docs/`, `.github/` og `project_context/` er fælles og ligger i roden. Der laves ikke separate cloud-løsninger pr. version.
+- Firmwarekommandoer (`source scripts/activate-ncs.sh`, `west build`, `west twister`) køres fra versionens mappe, fx `cd Original`.
+- Nye firmware-testmapper skal tilføjes i `-T`-listen i `.github/workflows/tests.yml` for den pågældende version.
 
 ## Cloud og visualization
 
