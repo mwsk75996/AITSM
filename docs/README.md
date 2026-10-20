@@ -18,6 +18,7 @@ Denne mappe indeholder projektdokumentation, kravspecifikationer og tekniske ref
 - [MQTT-reconnect (issue #76)](mqtt-reconnect.md)
 
 - [MQTT/QuestDB-opsætning og deduplikering (issue #78)](../cloud/mqtt/README.md)
+- [Mosquitto og QuestDB i Docker på VPS'en](../cloud/docker/README.md)
 
 - [Målinger under MQTT-udfald (issue #77)](maalinger-under-udfald.md)
 

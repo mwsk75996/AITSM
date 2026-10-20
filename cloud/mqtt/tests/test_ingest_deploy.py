@@ -25,7 +25,6 @@ def test_failed_subscription_rolls_back_and_restarts_original(tmp_path, monkeypa
     source = tmp_path / "deploy_ingest.py"
     source.with_name("ingest.py").write_text("# replacement\n")
     monkeypatch.setattr(deploy, "__file__", str(source))
-    monkeypatch.setattr(deploy, "service_command", lambda: ("python", target))
     commands = []
     monkeypatch.setattr(deploy.subprocess, "run", lambda command, **kwargs: commands.append(command))
     def fail(since):
@@ -33,9 +32,9 @@ def test_failed_subscription_rolls_back_and_restarts_original(tmp_path, monkeypa
         raise RuntimeError("Ingen subscription")
     monkeypatch.setattr(deploy, "wait_for_subscription", fail)
     with pytest.raises(RuntimeError, match="Ingen subscription"):
-        deploy.deploy()
+        deploy.deploy(target=target)
     assert target.read_text() == "# original\n"
-    assert commands.count(["systemctl", "restart", deploy.SERVICE]) == 2
+    assert commands.count(deploy.restart()) == 2
 
 
 def test_paho_check_accepts_installed_paho_with_manual_ack():
@@ -50,29 +49,27 @@ def test_paho_without_manual_ack_stops_deploy_before_replacement(tmp_path, monke
     target.write_text("# original\n")
     source = tmp_path / "ingest.py"
     source.write_text("# replacement\n")
-    monkeypatch.setattr(deploy, "service_command", lambda: ("python", target))
     commands = []
     def run(command, **kwargs):
         commands.append(command)
-        if command[1:] == ["-c", deploy.PAHO_CHECK]:
+        if command == deploy.paho_check():
             raise subprocess.CalledProcessError(1, command)
     monkeypatch.setattr(deploy.subprocess, "run", run)
     with pytest.raises(subprocess.CalledProcessError):
-        deploy.deploy(source)
+        deploy.deploy(source, target)
     assert target.read_text() == "# original\n"
-    assert commands == [["python", "-c", deploy.PAHO_CHECK]]
+    assert commands == [deploy.paho_check()]
 
 
 def test_identical_script_does_not_restart_service(tmp_path, monkeypatch):
     target = tmp_path / "ingest.py"
     target.write_text("# identical\n")
     monkeypatch.setattr(deploy, "__file__", str(tmp_path / "deploy_ingest.py"))
-    monkeypatch.setattr(deploy, "service_command", lambda: ("python", target))
     commands = []
     monkeypatch.setattr(deploy.subprocess, "run", lambda command, **kwargs: commands.append(command))
-    deploy.deploy()
-    assert ["systemctl", "is-active", "--quiet", deploy.SERVICE] in commands
-    assert not any(command[1] == "restart" for command in commands)
+    deploy.deploy(target=target)
+    assert deploy.is_running() in commands
+    assert deploy.restart() not in commands
 
 
 def outage_setup(monkeypatch, query):
@@ -92,8 +89,8 @@ def test_outage_query_failure_still_starts_ingest(monkeypatch):
     commands = outage_setup(monkeypatch, query)
     with pytest.raises(RuntimeError, match="Database utilgængelig"):
         outage.verify()
-    assert ["systemctl", "stop", outage.SERVICE] in commands
-    assert commands[-2:] == [["systemctl", "start", outage.SERVICE],
+    assert [*outage.COMPOSE, "stop", outage.SERVICE] in commands
+    assert commands[-2:] == [[*outage.COMPOSE, "start", outage.SERVICE],
                              ["systemctl", "stop", outage.RESTORE_UNIT + ".timer"]]
     assert commands[1][0] == "systemd-run", "Guard must be armed before stopping ingest"
 
@@ -102,7 +99,7 @@ def test_outage_requires_recent_device_data_before_stopping(monkeypatch):
     commands = outage_setup(monkeypatch, lambda sql: [])
     with pytest.raises(RuntimeError, match="aktiv Thingy"):
         outage.verify()
-    assert not any(command[1] == "stop" for command in commands)
+    assert [*outage.COMPOSE, "stop", outage.SERVICE] not in commands
 
 
 def test_outage_checks_recovered_batch_cadence(monkeypatch):
@@ -115,14 +112,14 @@ def test_outage_checks_recovered_batch_cadence(monkeypatch):
     commands = outage_setup(monkeypatch, lambda sql: next(answers))
     monkeypatch.setattr(outage.time, "time", lambda: next(moments))
     outage.verify()
-    assert commands[-1] == ["systemctl", "is-active", "--quiet", outage.SERVICE]
+    assert commands[-1] == outage.is_running()
 
 
 def test_failed_restart_keeps_independent_restore_timer_armed(monkeypatch):
     commands = []
     def run(command, **kwargs):
         commands.append(command)
-        if command == ["systemctl", "start", outage.SERVICE]:
+        if command == [*outage.COMPOSE, "start", outage.SERVICE]:
             raise RuntimeError("Genstart fejlede")
     monkeypatch.setattr(outage.subprocess, "run", run)
     with pytest.raises(RuntimeError, match="Genstart fejlede"):
@@ -138,16 +135,15 @@ def test_termination_signal_runs_restore_cleanup(monkeypatch):
     with pytest.raises(InterruptedError):
         with outage.restore_ingest():
             outage.signal.getsignal(outage.signal.SIGTERM)(outage.signal.SIGTERM, None)
-    assert commands[-2:] == [["systemctl", "start", outage.SERVICE],
+    assert commands[-2:] == [[*outage.COMPOSE, "start", outage.SERVICE],
                              ["systemctl", "stop", outage.RESTORE_UNIT + ".timer"]]
 
 
 def test_broker_limits_reject_per_listener_settings(tmp_path, capsys):
-    (tmp_path / "conf.d").mkdir()
-    (tmp_path / "mosquitto.conf").write_text("persistence true\npassword_file /etc/mosquitto/passwd\n")
-    (tmp_path / "conf.d" / "aitsm.conf").write_text("per_listener_settings false\n")
-    outage.broker_limits(tmp_path)
-    assert capsys.readouterr().out == "Mosquitto persistence=true\nMosquitto per_listener_settings=false\n"
-    (tmp_path / "conf.d" / "aitsm.conf").write_text("per_listener_settings true\n")
+    config = tmp_path / "mosquitto.conf"
+    config.write_text("per_listener_settings false\npassword_file /etc/mosquitto/passwd\npersistence true\n")
+    outage.broker_limits(config)
+    assert capsys.readouterr().out == "Mosquitto per_listener_settings=false\nMosquitto persistence=true\n"
+    config.write_text("per_listener_settings true\n")
     with pytest.raises(RuntimeError, match="per_listener_settings"):
-        outage.broker_limits(tmp_path)
+        outage.broker_limits(config)
