@@ -5,9 +5,6 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import re
-import shlex
-import subprocess
 import time
 from types import SimpleNamespace
 import questdb_schema as schema
@@ -62,15 +59,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default=schema.DEFAULT_URL)
     parser.add_argument("--ingest-file", type=Path, default=Path(__file__).with_name("ingest.py"))
-    parser.add_argument("--service", help="Use the installed service's Python interpreter and ingest.py")
     args = parser.parse_args()
-    if args.service:
-        command = subprocess.check_output(["systemctl", "show", args.service, "--property=ExecStart", "--value"], text=True)
-        match = re.search(r"argv\[\]=(.*?) ;", command)
-        argv = shlex.split(match.group(1)) if match else []
-        ingest_path = next((Path(a) for a in argv if a.endswith("/ingest.py")), None)
-        if not argv or ingest_path is None or not ingest_path.is_file():
-            raise RuntimeError("Kunne ikke finde service-interpreter og ingest.py")
-        subprocess.run([argv[0], str(Path(__file__).resolve()), "--ingest-file", str(ingest_path), "--url", args.url], check=True)
-    else:
-        verify(args.ingest_file, args.url)
+    verify(args.ingest_file, args.url)

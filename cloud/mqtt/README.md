@@ -59,7 +59,8 @@ kan også startes manuelt på `main`. Migrationen kører aldrig fra en PR.
 VPS-verifikationen henter to eksisterende målinger og gentager deres batch
 to gange gennem den installerede `ingest.py`'s skrivefunktion (`store_message`,
 eller `on_message` i versioner før #88). Begge faktiske HTTP-skrivninger skal lykkes, WAL skal være anvendt, og antal/værdier skal
-være uændrede. Den bruger servicens Python-interpreter; ingen testdata,
+være uændrede. Den kører med værtens `python3` mod ingest-filen, som
+ingest-containeren bind-mounter; ingen testdata,
 servicecredentials eller broker-genstart er nødvendige. Webdeployet berøres ikke.
 
 ## Tests
@@ -134,6 +135,10 @@ skriveadgang til `spBv1.0/aitsm/NBIRTH/thingy91x` og
 tilstand og en tilsvarende ACL, og udfaldstesten stopper, før ingest stoppes,
 hvis brokeren har `per_listener_settings true`.
 
+Brokeren og QuestDB kører i Docker på VPS'en. Den aktive broker-konfiguration
+er [`cloud/docker/mosquitto/mosquitto.conf`](../docker/mosquitto/mosquitto.conf);
+se [`cloud/docker/README.md`](../docker/README.md).
+
 ### Deploy og testcase 4
 
 Workflowet [`Vedvarende ingest-session`](../../.github/workflows/ingest-session.yml)
@@ -144,11 +149,12 @@ før genstart; bagefter kræves alle 40 rækker med korrekte værdier.
 
 VPS-administrator skal først installere den [afgrænsede root-helper](deploy/README.md),
 da GitHub-kontoens eksisterende sudo-adgang kun dækker Nginx.
-Efter merge deployes kun `ingest.py` til stien fra `projekt-c-ingest`'s
-ExecStart. Filen erstattes atomisk med bevaret ejer og rettigheder, og servicens
-QoS 1-abonnement skal blive etableret. Ved fejl gendannes den tidligere fil,
-og servicen genstartes. Identisk indhold giver ingen genstart. Credentials,
-service-unit, QuestDB og webdeploy berøres ikke; SSH bruger kun GitHub Secrets. Workflowet kører den installerede
+Efter merge deployes kun `ingest.py` til `/var/www/html/projekt-c/cloud/mqtt/`,
+som `ingest`-containeren bind-mounter read-only (se [Docker](../docker/README.md)).
+Filen erstattes atomisk med bevaret ejer og rettigheder, containeren genstartes
+med `docker compose restart ingest`, og dens QoS 1-abonnement skal blive
+etableret. Ved fejl gendannes den tidligere fil, og containeren genstartes. Identisk indhold giver ingen genstart. Credentials,
+`compose.yml`, image, QuestDB og webdeploy berøres ikke; SSH bruger kun GitHub Secrets. Workflowet kører den installerede
 root-ejede helper gennem sudo, aldrig uploadede helpermoduler som root.
 
 Manuel kørsel på `main` med `verify_outage=true` gentager testcase 4 på VPS'en:

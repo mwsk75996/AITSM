@@ -2,14 +2,16 @@
 """Atomically update only the installed ingest script, with rollback on failure."""
 import argparse
 from pathlib import Path
-import re
-import shlex
 import subprocess
 import tempfile
 import time
 import os
 
-SERVICE = "projekt-c-ingest"
+# Ingest runs as the "ingest" service in cloud/docker/compose.yml, which
+# bind-mounts the directory of TARGET read-only into the container.
+SERVICE = "ingest"
+COMPOSE = ["/usr/bin/docker", "compose", "-f", "/opt/aitsm/docker/compose.yml"]
+TARGET = Path("/var/www/html/projekt-c/cloud/mqtt/ingest.py")
 # Fails on Paho before 2.0, which cannot postpone PUBACK until QuestDB has the rows.
 PAHO_CHECK = ("import paho.mqtt, paho.mqtt.client as mqtt; "
               "from paho.mqtt.packettypes import PacketTypes; "
@@ -19,14 +21,17 @@ PAHO_CHECK = ("import paho.mqtt, paho.mqtt.client as mqtt; "
               "print('paho-mqtt', paho.mqtt.__version__, 'understøtter manuel ACK')")
 
 
-def service_command():
-    command = subprocess.check_output(["systemctl", "show", SERVICE, "--property=ExecStart", "--value"], text=True)
-    match = re.search(r"argv\[\]=(.*?) ;", command)
-    argv = shlex.split(match.group(1)) if match else []
-    target = next((Path(a).resolve() for a in argv if a.endswith("/ingest.py")), None)
-    if not argv or target is None or not target.is_file():
-        raise RuntimeError("Kunne ikke finde service-interpreter og ingest.py")
-    return argv[0], target
+def paho_check():
+    # Runs in a fresh container from the service image, without dependencies.
+    return [*COMPOSE, "run", "--rm", "--no-deps", "-T", SERVICE, "python", "-c", PAHO_CHECK]
+
+
+def is_running():
+    return [*COMPOSE, "exec", "-T", SERVICE, "true"]
+
+
+def restart():
+    return [*COMPOSE, "restart", SERVICE]
 
 
 def replace_script(target, content, stat):
@@ -45,43 +50,40 @@ def replace_script(target, content, stat):
 
 def wait_for_subscription(since):
     for _ in range(30):
-        log = subprocess.check_output(["journalctl", "-u", SERVICE, "--since", f"@{since}", "-o", "cat"], text=True)
-        active = subprocess.run(["systemctl", "is-active", "--quiet", SERVICE]).returncode == 0
+        log = subprocess.check_output([*COMPOSE, "logs", "--no-log-prefix", "--since", str(since), SERVICE], text=True)
+        active = subprocess.run(is_running(), capture_output=True).returncode == 0
         if active and "MQTT subscription acknowledged" in log:
             return
         time.sleep(1)
     raise RuntimeError("Ingest etablerede ikke sit abonnement efter deploy")
 
 
-def deploy(source=None):
-    interpreter, target = service_command()
-    # Check the service's existing interpreter and Paho installation; no
-    # environment files or credentials need to be read or replaced.
-    subprocess.run([interpreter, "-c", PAHO_CHECK], check=True)
+def deploy(source=None, target=TARGET):
+    # Check the image's Paho installation; no environment files or
+    # credentials need to be read or replaced.
+    subprocess.run(paho_check(), check=True)
     content = (source or Path(__file__).with_name("ingest.py")).read_bytes()
     compile(content, str(target), "exec")
     previous = target.read_bytes()
     if content == previous:
-        subprocess.run(["systemctl", "is-active", "--quiet", SERVICE], check=True)
+        subprocess.run(is_running(), check=True)
         print("Installeret ingest.py er allerede identisk", flush=True)
         return
     stat = target.stat()
     since = int(time.time())
     try:
         replace_script(target, content, stat)
-        subprocess.run(["systemctl", "restart", SERVICE], check=True)
+        subprocess.run(restart(), check=True)
         wait_for_subscription(since)
     except BaseException:
         replace_script(target, previous, stat)
-        subprocess.run(["systemctl", "restart", SERVICE], check=True)
+        subprocess.run(restart(), check=True)
         raise
     print("Ingest opdateret og QoS 1-abonnement etableret; miljø og øvrige services uændrede", flush=True)
 
 
 def inspect():
-    interpreter, target = service_command()
-    print(f"Ingest-script: {target}; parent writable={os.access(target.parent, os.W_OK)}", flush=True)
-    subprocess.run([interpreter, "-c", PAHO_CHECK], check=False)
+    print(f"Ingest-script: {TARGET}; parent writable={os.access(TARGET.parent, os.W_OK)}", flush=True)
     subprocess.run(["sudo", "-n", "-l"], check=False)
 
 
