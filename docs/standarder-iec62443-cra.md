@@ -1,158 +1,260 @@
 # Standarder: IEC 62443-4-2 og CRA
 
 Denne redegørelse dækker issue #11. Formålet er ikke fuld compliance, men at
-udvælge relevante punkter fra IEC 62443-4-2 og artikler fra CRA Annex I og
-argumentere for, hvordan løsningen adresserer dem. Referencerne til
-IEC 62443-4-2 er fra [`docs/references/standards/iec-62443-4-2.pdf`](references/standards/iec-62443-4-2.pdf).
+udvælge relevante punkter fra IEC 62443-4-2 og CRA Annex I og argumentere for,
+hvordan løsningen adresserer dem, og hvor grænserne går.
+
+Redegørelsen beskriver afleveringsversionen [`Simple/`](../Simple/README.md) og
+den fælles cloud i [`cloud/`](../cloud/). Original bygger på samme principper
+(TLS, CA i modemmet, samme broker og ACL), men har flere moduler.
+
+Kilder:
+
+- IEC 62443-4-2: [`references/standards/iec-62443-4-2.pdf`](references/standards/iec-62443-4-2.pdf).
+- CRA Annex I: de udvalgte paragraffer i
+  [kravspecifikationen](references/requirements/ucl-mt-project-requirements-2026-08-26.pdf),
+  som citerer Kommissionens forslag (15.9.2022). Nummereringen herunder følger
+  kravspecifikationen. I den vedtagne forordning har punkterne andre bogstaver.
+
+## Overblik over løsningen
+
+```
+Thingy:91 X ──MQTT/TLS :8883──▶ Mosquitto ──internt Docker-netværk──▶ ingest ──▶ QuestDB
+(kun udgående)                  (Docker)                              (Docker)     (127.0.0.1)
+```
+
+- Enheden åbner kun én udgående forbindelse: MQTT over TLS til egen broker.
+- Brokeren er den eneste tjeneste, der er udgivet fra Docker til internettet.
+- Ingest og QuestDB kan ikke nås udefra.
 
 ## IEC 62443-4-2
 
-### CR 3.1 – Communication integrity (+ enhancement (1) Communication authentication)
+### CR 3.1 – Communication integrity
 
-**Krav:** Komponenten skal beskytte integriteten af transmitteret information
-og kunne verificere afsenderens autenticitet.
+**Krav:** Komponenten skal beskytte integriteten af transmitteret information.
 
-**Hvordan løsningen adresserer det:** Al telemetri sendes fra Thingy:91 X til
-cloud-broker'en over MQTT med TLS på port 8883
-(`Original/app/src/mqtt_client.c`, `AITSM_MQTT_HOSTNAME`/port 8883 i
-`aitsm_mqtt_init()`). CA-certifikatet provisioneres til modemets
-sikkerhedslager før forbindelsen oprettes
-(`Original/app/src/mqtt_credentials_provision.c`, `modem_key_mgmt_write(...)`), så
-enheden kan verificere broker'ens certifikat under TLS-håndtrykket.
-Forbindelsen autentificeres derudover med brugernavn/password (`conn_params` i
-`mqtt_client.c`). Klient-id'et bruges som broker-identifikator, men er i den
-aktuelle implementation hardcoded til `thingy91x` og bør derfor ikke beskrives
-som en unik identitet eller stærk autentificeringsfaktor. Brugernavn/password
-er den relevante MQTT-autentificering her, hvilket dækker enhancement (1) i
-den nuværende løsning.
+**Hvordan løsningen adresserer det:**
 
-**Afgrænsning:** Der er ikke implementeret klientcertifikater (mTLS) — kun
-server-autentificering via TLS plus MQTT-brugernavn/password. Det er
-tilstrækkeligt til det aktuelle trusselsbillede, men nævnes som en mulig
-fremtidig forbedring.
+- Al telemetri sendes over TLS på port 8883 (`CONFIG_MQTT_LIB_TLS`,
+  `CONFIG_MQTT_HELPER_PORT=8883` i `Simple/app/prj.conf`). TLS beskytter hver
+  pakke med en integritetskontrol, så ændringer undervejs opdages og afvises.
+- Enheden verificerer brokerens certifikat. Let's Encrypts rodcertifikat
+  (ISRG Root X1, `Simple/app/certs/ca-cert.pem`) skrives ved opstart ind i
+  modemmets nøglelager under sec tag 42 med `modem_key_mgmt_write()`
+  (`provision_ca_certificate()` i `Simple/app/src/mqtt_client.c`). NCS'
+  `mqtt_helper` sætter `peer_verify` til `REQUIRED` og kontrollerer
+  hostnavnet `aitsm.vps.webdock.cloud`, så en falsk broker med et andet
+  certifikat afvises.
+- Brokeren accepterer mindst TLS 1.2 (`tls_version tlsv1.2` i
+  `cloud/docker/mosquitto/mosquitto.conf`). Certifikatet fornyes automatisk af
+  certbot.
+- Enheden autentificeres over for brokeren med brugernavn og password.
+  Anonyme klienter afvises (`allow_anonymous false`).
+- Ud over transporten sikrer applikationen, at data kommer frem i rette
+  form: NDATA sendes med QoS 1, og batchen slettes først fra bufferen, når
+  brokeren har kvitteret med PUBACK (`handle_puback()` i `main.c`).
+  SparkplugB's `seq` og `bdSeq` gør det muligt at se tabte eller gentagne
+  beskeder, og QuestDB fjerner dubletter
+  (`cloud/mqtt/migrations/001_enable_dedup.sql`).
+
+**Afgrænsning:** Brokeren autentificerer ikke enheden med certifikat (mTLS,
+#71), kun med brugernavn og password. Payloads er ikke signeret ende til ende,
+så integriteten hviler på TLS mellem enhed og broker.
 
 ### CR 4.1 – Information confidentiality
 
 **Krav:** Beskyt fortroligheden af information på kommunikationskanaler og i
 lagret data.
 
-**Hvordan løsningen adresserer det:** Samme TLS-forbindelse som ovenfor
-sikrer fortrolighed for data i transit mellem enhed og broker. MQTT-
-brugernavn/password leveres ved build-tid via en ikke-committed
-`mqtt_credentials.h` (se `#if __has_include(...)` i `mqtt_client.c`) og bliver
-dermed en del af firmware-binaryen. CA-certifikatet provisioneres separat til
-modemets sikkerhedslager. Løsningen beskytter derfor data i transit, mens
-beskyttelsen af credentials at rest ikke bør beskrives som secure-storage uden
-yderligere dokumentation.
+**Hvordan løsningen adresserer det:**
+
+- Data i transit er krypteret med TLS mellem enhed og broker. Port 1883 uden
+  TLS findes kun på det interne Docker-netværk mellem broker og ingest
+  (`backend`, `internal: true` i `cloud/docker/compose.yml`) og udgives ikke
+  på værten.
+- MQTT-passwordet ligger ikke i repositoriet. Det gives som miljøvariabel
+  (`AITSM_MQTT_PASSWORD`) ved build og skrives kun til den ignorerede
+  build-mappe (`Simple/app/CMakeLists.txt`). Firmwaren nægter at starte uden
+  password (`aitsm_mqtt_init()`).
+- På serveren ligger ingest-credentials i `/etc/projekt-c/mqtt.env` (root,
+  600), og QuestDB kan kun nås fra værten selv (`127.0.0.1:9000`).
+
+**Afgrænsning:** Passwordet bliver en del af firmwarefilen og ligger
+ukrypteret i enhedens flash. Den, der har fysisk adgang til enheden eller
+firmwarefilen, kan læse det. Data i QuestDB er ikke krypteret på disken.
+Begge dele er en bevidst afgrænsning: projektet omfatter ikke avanceret
+nøglehåndtering, og telemetrien (temperatur og batteri) er ikke følsom.
 
 ### CR 3.7 – Error handling
 
-**Krav:** Fejltilstande skal identificeres og håndteres uden at afsløre
-information, som en modstander kan udnytte til at angribe systemet.
+**Krav:** Fejltilstande skal identificeres og håndteres, uden at der afsløres
+information, som en modstander kan udnytte.
 
-**Hvordan løsningen adresserer det:** Fejl i MQTT-laget logges med korte,
-faste beskeder og numeriske return codes/fejlkoder. Logbeskederne indeholder
-ikke credentials eller detaljerede fejlårsager, der kan afsløre unødvendige
-systemdetaljer:
+**Hvordan løsningen adresserer det:**
 
-```c
-LOG_ERR("MQTT-forbindelse afvist, return code: %d", return_code);
-LOG_ERR("MQTT-helper fejl: %d", error);
-LOG_ERR("MQTT-målepayload blev ikke bekræftet, message id: %u, resultat: %d", ...);
-```
+- Fejl logges med korte, faste beskeder og numeriske fejlkoder. Credentials
+  logges aldrig; kun hostnavnet nævnes:
 
-(`Original/app/src/mqtt_client.c`). Fejl propageres videre som events til
-`app_controller.c`, som også kun logger koden, ikke en fortolket årsag.
-Dermed er der ikke nogen oplagt kilde til information, en angriber kunne
-bruge til at målrette et angreb (fx skelne "forkert login" fra "forkert
-certifikat").
+  ```c
+  LOG_ERR("Brokeren afviste forbindelsen, kode: %d", return_code);
+  LOG_ERR("Kunne ikke forbinde til %s: %d", hostname, err);
+  LOG_WRN("Ingen PUBACK efter %d s; lukker MQTT-forbindelsen", PUBACK_TIMEOUT_SECONDS);
+  ```
 
-**Afgrænsning:** Der er endnu ikke implementeret automatisk
-reconnect/backoff ved `AITSM_APP_EVENT_MQTT_ERROR` i `app_controller.c` —
-fejlen logges, men der forsøges ikke aktivt genoprettelse. Det er et
-funktionelt hul snarere end et sikkerhedshul, men det er relevant for CR 3.7's
-naboer (fx CR 7.1 – Resource availability), hvis de skal dækkes senere.
+- Fejl fører til en kontrolleret tilstand i stedet for et nedbrud:
+  - Mistet forbindelse: nye forsøg efter 5, 10, 20, 40 og derefter højst 60 s
+    (`schedule_reconnect()` i `main.c`).
+  - Død forbindelse uden fejlmelding fra modemmet: udebliver PUBACK i 120 s,
+    lukkes forbindelsen, og batchen sendes igen efter reconnect
+    (`check_puback_timeout()`).
+  - Fuld buffer: nye målinger springes over og tælles i loggen. Data, der
+    venter på at blive sendt, overskrives aldrig.
+  - Fejl ved opstart: enheden stopper og viser rødt på LED'en.
+- I cloud afviser ingest ugyldige payloads med en advarsel uden at gå ned, og
+  midlertidige skrivefejl til QuestDB prøves igen med backoff
+  (`DeliveryWorker` i `cloud/mqtt/ingest.py`).
+- Adfærden er testet på Thingy'en med broker-udfald og blokeret forbindelse
+  (se [Verifikation i Simple](../Simple/README.md#verifikation)).
+
+**Afgrænsning:** Brokeren svarer med en MQTT-returkode ved afvist login.
+Det er standardadfærd i MQTT og ikke noget, projektet har ændret.
 
 ### CR 2.8 – Auditable events
 
-**Krav:** Komponenten skal generere audit-records for bl.a. access control,
-request errors, control system events og konfigurationsændringer, med
-timestamp, kilde, type og resultat.
+**Krav:** Komponenten skal kunne generere audit-records for bl.a. adgang,
+fejl og systemhændelser med tid, kilde, type og resultat.
 
-**Hvordan løsningen adresserer det:** Applikationen logger de centrale
-hændelser i sin livscyklus via Zephyrs logging-subsystem
-(`LOG_MODULE_REGISTER` i både `mqtt_client.c` og `app_controller.c`):
-forbindelse etableret/afvist/lukket, publish bekræftet/fejlet, og
-initialiseringsfejl. Det dækker i praksis kategorierne "request errors" og
-"control system events" fra kravet.
+**Hvordan løsningen adresserer det:**
 
-**Afgrænsning:** Dette er ikke et fuldt audit-log-system. Loggen er kun
-tilgængelig lokalt via seriel/RTT-output og persisteres ikke, hvilket betyder
-at kravene til lagringskapacitet (**CR 2.9**), respons på audit-svigt
-(**CR 2.10**) og ekstern tilgængelighed af audit-logs (**CR 6.1**) bevidst
-*ikke* er omfattet af denne redegørelse — de kræver infrastruktur, projektet
-ikke har bygget endnu.
+- Enheden logger med Zephyrs logging-subsystem, ét logmodul pr. fil
+  (`LOG_MODULE_REGISTER`): netværksstatus og tildelt PSM (`network.c`),
+  forbindelse, afvisning og lukning af MQTT (`mqtt_client.c`) samt afsendelse,
+  PUBACK, timeout og oversprungne målinger (`main.c`).
+- Mosquitto logger forbindelser og afviste logins, og ingest logger
+  modtagne batches, afviste payloads og skrivefejl. Begge logs kan ses med
+  `docker compose logs` på VPS'en.
+
+**Afgrænsning:** Enhedens log er kun tilgængelig over den serielle
+forbindelse, persisteres ikke og har uptime som tidsstempel. Der er ingen
+central logopsamling. Kravene til lagring af audit-logs (CR 2.9), reaktion på
+audit-svigt (CR 2.10) og ekstern adgang til logs (CR 6.1) er derfor ikke
+omfattet.
 
 ## CRA Annex I
 
-### 1.c – Beskyttelse mod uautoriseret adgang
+### 1.c – Fortrolighed af data
 
-Kræver passende kontrolmekanismer, herunder autentificering og identity
-management. Adresseres af den samme MQTT-autentificering som CR 3.1:
-brugernavn/password valideret af broker'en, kombineret med TLS-forbindelsen
-der forhindrer aflytning af credentials under transport.
-`AITSM_MQTT_CLIENT_ID` identificerer klienten over for broker'en, men er i den
-aktuelle implementation hardcoded til `thingy91x` og er derfor ikke en unik
-device-identitet.
+> "protect the confidentiality of stored, transmitted or otherwise processed
+> data […] such as by encrypting relevant data at rest or in transit by state
+> of the art mechanisms"
 
-### 1.d – Beskyttelse af fortrolighed
+- **I transit:** TLS 1.2 eller nyere mellem enhed og broker med verificeret
+  servercertifikat (se CR 3.1 og CR 4.1). Ukrypteret MQTT findes kun på det
+  interne Docker-netværk.
+- **At rest:** CA-certifikatet ligger i modemmets nøglelager. MQTT-passwordet
+  ligger ukrypteret i firmwaren, og QuestDB er ikke krypteret på disken, men kan
+  kun nås fra VPS'en selv.
 
-Kræver kryptering af data i transit/at rest efter state-of-the-art metoder.
-TLS på MQTT-forbindelsen adresserer data i transit (samme grundlag som CR
-4.1). MQTT-credentials leveres ved build-tid og bliver en del af
-firmware-binaryen; de bør derfor ikke beskrives som krypteret at rest uden
-yderligere dokumentation.
+**Status:** Opfyldt for data i transit. Delvist for data at rest.
 
-### 1.h – Minimér negativ indflydelse på andre enheders/netværks tilgængelighed
+### 1.d – Integritet og rapportering af fejl
 
-Kravet handler bl.a. om at undgå unødig belastning af andre enheder eller
-netværk. Publisering sker med QoS 1
-(`MQTT_QOS_1_AT_LEAST_ONCE` i `aitsm_mqtt_publish_payload()`), men QoS
-regulerer leveringssemantikken og forhindrer ikke i sig selv gentagne
-forbindelsesforsøg. Der er **ingen backoff-strategi implementeret endnu** ved
-gentagne forbindelsesfejl — hvis broker'en er nede, vil enheden potentielt
-forsøge at genoprette forbindelse uden stigende ventetid. Punktet er derfor
-kun delvist adresseret og kan ikke erklæres opfyldt i dag.
+> "protect the integrity of stored, transmitted or otherwise processed data
+> […] commands, programs and configuration against any manipulation or
+> modification not authorised by the user, as well as report on corruptions"
 
-### 1.j – Reducér konsekvenser af sikkerhedshændelser
+- **Data:** TLS beskytter integriteten i transit. Kun enheden må skrive til sine
+  egne SparkplugB-topics. ACL'en på brokeren giver brugeren `thingy91x`
+  skriveadgang til `spBv1.0/aitsm/NBIRTH/thingy91x` og
+  `spBv1.0/aitsm/NDATA/thingy91x` og intet andet. Ingest må kun læse.
+- **Kommandoer og konfiguration:** Enheden abonnerer ikke på noget topic, så
+  den kan ikke styres eller omkonfigureres udefra. Konfigurationen ligger i
+  `prj.conf` og bygges ind i firmwaren.
+- **Rapportering:** Ugyldige payloads afvises af ingest og logges
+  (`Rejected MQTT telemetry …`). Manglende PUBACK logges på enheden.
+  SparkplugB's `seq` logges af ingest, så huller kan ses.
+- **Programmer:** Firmwaren bygges med NCS' sysbuild og MCUboot, som
+  verificerer signaturen på applikationen ved opstart.
 
-Kræver mekanismer, der begrænser skadesomfanget af en hændelse (exploitation
-mitigation). Adresseres delvist af fejlhåndteringen under CR 3.7 (ingen
-lækage af udnyttelig information ved fejl) samt af, at enheden kører på
-Zephyr RTOS med memory protection via `CONFIG_TRUSTED_EXECUTION_NONSECURE`
-(se README's afsnit om non-secure board-target). Automatisk
-recovery/fail-safe-adfærd ved vedvarende MQTT-fejl er endnu ikke bygget (jf.
-afgrænsningen under CR 3.7).
+**Status:** Delvist. MCUboot bruger NCS' standard-signeringsnøgle
+(`bootloader/mcuboot/root-ec-p256.pem`), som er offentlig, så verifikationen beskytter ikke mod en angriber, der selv bygger
+firmware. Egen nøgle følges i #70.
 
-### 2.1 – Identifikation og dokumentation af sårbarheder (SBOM)
+### 1.h – Begræns angrebsfladen
 
-Kræver dokumentation af komponenter og sårbarheder, typisk via en Software
-Bill of Materials. **Dette punkt er ikke opfyldt endnu.** Der findes i dag
-ingen SBOM for projektets afhængigheder (nRF Connect SDK-moduler, Zephyr,
-`mqtt_helper` m.fl.). Det er den klareste mangel af de valgte artikler og et
-oplagt fremtidigt arbejdspunkt — fx via `west`/Zephyrs indbyggede SBOM-
-generering.
+> "be designed, developed and produced to limit attack surfaces, including
+> external interfaces"
+
+**Enheden:**
+
+- Ingen lyttende sockets og ingen indgående forbindelser. Den eneste
+  netværksforbindelse er den udgående TLS-forbindelse til egen broker.
+- Ingen indgående kommandoer: Simple abonnerer ikke på MQTT-topics og har ikke
+  NCMD.
+- AT-shell og testprofiler fra Original er bevidst udeladt i Simple (se
+  [Taget med og bevidst udeladt](../Simple/README.md#taget-med-og-bevidst-udeladt)).
+- Reconnect med backoff (5 til 60 s) betyder, at enheden ikke belaster
+  netværk og broker med hurtige forsøg, når brokeren er nede.
+
+**Cloud:**
+
+- Docker udgiver kun port 8883 på alle interfaces. QuestDB er bundet til
+  `127.0.0.1`, og ingest har ingen udgivne porte og ingen adgang til
+  internettet (`internal: true`).
+- Ingest kører med read-only filsystem, uden Linux-capabilities
+  (`cap_drop: [ALL]`) og med `no-new-privileges`.
+- SSH accepterer kun nøgler (`PasswordAuthentication no`). fail2ban og
+  automatiske sikkerhedsopdateringer (`unattended-upgrades`) er aktive.
+- Docker-images er låst til en bestemt digest, så der kun køres testede
+  versioner.
+
+**Status:** Delvist. VPS'en har stadig Webdocks standardtjenester åbne, som
+projektet ikke bruger: FTP (port 21 og 50000-50099). Root-login med nøgle er
+også tilladt. Begge kan lukkes for at gøre angrebsfladen mindre.
+
+### 1.j – Registrering og overvågning af aktivitet
+
+> "provide security related information by recording and/or monitoring
+> relevant internal activity, including the access to or modification of data,
+> services or functions"
+
+- **Enheden** logger netværksstatus, forbindelse til og afvisning fra brokeren,
+  afsendelse, kvittering og fejl (se CR 2.8).
+- **Brokeren** logger, hvem der forbinder, og afviste logins.
+- **Ingest** logger hver modtaget batch med enhed og `seq`, afviste payloads og
+  fejl ved skrivning til databasen.
+- **VPS'en** logger SSH-login i systemets journal, og fail2ban blokerer
+  gentagne fejlede forsøg.
+
+**Status:** Delvist. Aktiviteten registreres, men enhedens log forlader ikke
+enheden, og der er ingen central overvågning eller alarmer.
+
+### 2.1 – Identifikation af komponenter og sårbarheder (SBOM)
+
+> "identify and document vulnerabilities and components contained in the
+> product, including by drawing up a software bill of materials in a commonly
+> used and machine-readable format covering at the very least the top-level
+> dependencies of the product"
+
+- **Firmware:** Afhængighederne er låst til NCS v3.4.0 (Zephyr 4.4.0) via
+  west-manifestet. Det dækker `nrf_modem`, `mqtt_helper`, MCUboot og nanopb.
+- **Cloud:** Mosquitto og QuestDB er låst til en digest i
+  `cloud/docker/compose.yml`, og ingest bruger `paho-mqtt==2.1.0`.
+
+**Status:** Ikke opfyldt. Versionerne er kendt og låst, men der er ingen
+maskinlæsbar SBOM. NCS har kommandoen `west ncs-sbom`, som kan generere en
+SPDX-SBOM ud fra buildet. Det er det oplagte næste skridt.
 
 ## Opsummering
 
-| Punkt | Status |
-|---|---|
-| CR 3.1 – Communication integrity | Opfyldt (TLS + MQTT-brugernavn/password) |
-| CR 4.1 – Information confidentiality | Delvist (TLS i transit; credentials at rest er ikke dokumenteret beskyttet) |
-| CR 3.7 – Error handling | Opfyldt (fejlkoder, ingen detaljelækage) |
-| CR 2.8 – Auditable events | Delvist (lokal logging, ikke persisteret) |
-| CRA 1.c | Opfyldt (MQTT-brugernavn/password; klient-id'et er ikke unikt) |
-| CRA 1.d | Delvist (TLS i transit; credentials at rest er ikke dokumenteret beskyttet) |
-| CRA 1.h | Delvist (mangler backoff-strategi) |
-| CRA 1.j | Delvist (mangler fail-safe/recovery) |
-| CRA 2.1 (SBOM) | Ikke opfyldt — fremtidigt arbejde |
+| Punkt | Status | Begrundelse |
+|---|---|---|
+| CR 3.1 – Communication integrity | Opfyldt | TLS med verificeret servercertifikat og hostnavn; PUBACK før sletning |
+| CR 4.1 – Information confidentiality | Delvist | TLS i transit; password ukrypteret i firmwaren |
+| CR 3.7 – Error handling | Opfyldt | Faste fejlkoder uden credentials; backoff, PUBACK-timeout, intet overskrives |
+| CR 2.8 – Auditable events | Delvist | Logging på enhed, broker og ingest; ingen persistent log på enheden |
+| CRA 1.c – Fortrolighed | Opfyldt i transit, delvist at rest | TLS; password og database er ikke krypteret at rest |
+| CRA 1.d – Integritet | Delvist | TLS, ACL, ingen indgående kommandoer; MCUboot med standardnøgle (#70) |
+| CRA 1.h – Angrebsflade | Delvist | Kun udgående forbindelse; kun 8883 udgivet; FTP og root-login kan lukkes |
+| CRA 1.j – Registrering | Delvist | Logs på alle led; ingen central overvågning |
+| CRA 2.1 – SBOM | Ikke opfyldt | Versioner låst; SBOM kan laves med `west ncs-sbom` |
