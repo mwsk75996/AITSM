@@ -13,6 +13,7 @@ Denne mappe indeholder projektdokumentation, kravspecifikationer og tekniske ref
 ## Redegørelser
 
 - [Standarder: IEC 62443-4-2 og CRA](standarder-iec62443-cra.md)
+- [SBOM for Simple-firmwaren](sbom/README.md)
 - [Test og validering (issue #12)](test-validering.md)
 - [MQTT-netværkskø (issue #75)](mqtt-netvaerksko.md)
 - [MQTT-reconnect (issue #76)](mqtt-reconnect.md)
