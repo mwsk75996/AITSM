@@ -208,9 +208,14 @@ firmware. Egen nøgle følges i #70.
 - Docker-images er låst til en bestemt digest, så der kun køres testede
   versioner.
 
-**Status:** Delvist. VPS'en har stadig Webdocks standardtjenester åbne, som
-projektet ikke bruger: FTP (port 21 og 50000-50099). Root-login med nøgle er
-også tilladt. Begge kan lukkes for at gøre angrebsfladen mindre.
+- Firewallen (UFW) tillader kun indgående SSH (22), HTTP/HTTPS (80/443) og
+  MQTT over TLS (8883). Webdocks standard-FTP-server (pure-ftpd), som
+  projektet ikke bruger, er stoppet og slået fra, og dens porte (21 og
+  50000-50099) er fjernet fra firewallen (2026-10-21).
+
+**Status:** Opfyldt. Den tilbageværende begrænsning er, at root-login med
+nøgle er tilladt. Den kan fjernes, når alle administratorer bruger egne
+brugere med sudo.
 
 ### 1.j – Registrering og overvågning af aktivitet
 
@@ -255,6 +260,6 @@ SPDX-SBOM ud fra buildet. Det er det oplagte næste skridt.
 | CR 2.8 – Auditable events | Delvist | Logging på enhed, broker og ingest; ingen persistent log på enheden |
 | CRA 1.c – Fortrolighed | Opfyldt i transit, delvist at rest | TLS; password og database er ikke krypteret at rest |
 | CRA 1.d – Integritet | Delvist | TLS, ACL, ingen indgående kommandoer; MCUboot med standardnøgle (#70) |
-| CRA 1.h – Angrebsflade | Delvist | Kun udgående forbindelse; kun 8883 udgivet; FTP og root-login kan lukkes |
+| CRA 1.h – Angrebsflade | Opfyldt | Kun udgående forbindelse fra enheden; firewall åbner kun 22, 80, 443 og 8883 |
 | CRA 1.j – Registrering | Delvist | Logs på alle led; ingen central overvågning |
 | CRA 2.1 – SBOM | Ikke opfyldt | Versioner låst; SBOM kan laves med `west ncs-sbom` |
