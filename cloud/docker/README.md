@@ -92,9 +92,29 @@ sudo docker compose restart questdb
 ```
 
 Containerne har `restart: unless-stopped` og starter igen efter genstart af
-VPS'en. Ingest genforbinder selv, når brokeren genstartes. Ændringer i
-`ingest/Dockerfile` kræver `docker compose build ingest && docker compose up -d`;
-ændringer i `ingest.py` deployes af workflowet uden nyt image.
+VPS'en. Ændringer i `ingest/Dockerfile` kræver
+`docker compose build ingest && docker compose up -d`; ændringer i `ingest.py`
+deployes af workflowet uden nyt image.
+
+### Genstart af brokeren (#101)
+
+Med systemd stoppede ingest sammen med Mosquitto og startede ikke igen
+(`Requires=` og `Restart=on-failure`). I Docker er ingest ikke afhængig af
+brokerens livscyklus: `depends_on` styrer kun rækkefølgen ved opstart, så
+containeren bliver kørende, og paho-klienten forbinder selv igen. Den
+vedvarende session (`projekt-c-questdb-ingest`) gør, at beskeder sendt imens
+leveres bagefter.
+
+Verificeret 2026-10-21 med Thingy'en kørende:
+
+- `docker compose restart mosquitto`: ingest blev kørende og forbandt igen
+  efter 2 s.
+- `docker compose stop mosquitto`, 60 s pause og `docker compose start
+  mosquitto`: ingest blev kørende under udfaldet og forbandt igen 2 s efter
+  start.
+- Thingy'en forbandt igen og sendte NBIRTH og én NDATA med 21 målinger.
+  QuestDB havde derefter 87 rækker fra 06:40:07 til 07:01:37 UTC, dvs. én
+  hvert 15. sekund uden huller og uden dubletter.
 
 ## Rollback
 
