@@ -4,7 +4,7 @@
 
 - Arbejdet planlægges og følges via Issues.
 - Ændringer udvikles i feature branches, som knyttes til den relevante Issue.
-- Når den endelige PR for en feature oprettes, skal den lukke det tilhørende issue.
+- Når den endelige PR for en feature oprettes, skal den lukke det tilhørende issue. Skriv `Closes #<nummer>` i PR-beskrivelsen; GitHub genkender kun de engelske nøgleord (`Closes`, `Fixes`, `Resolves`), så `Lukker #<nummer>` lukker ikke issuet.
 - Vi bruger ikke længere individuelle personlige branches — al kodning sker i feature branches.
 - Ændringer skal ledsages af relevante unit tests, og unit tests skal køres, før arbejdet afsluttes.
 - Koden skal have en god, modulær filstruktur. Funktionalitet skal opdeles i relevante `.c`- og `.h`-filer, f.eks. `feature.c` og `feature.h`, i stedet for at samle alt i `main.c`.
