@@ -241,14 +241,21 @@ enheden, og der er ingen central overvågning eller alarmer.
 > used and machine-readable format covering at the very least the top-level
 > dependencies of the product"
 
-- **Firmware:** Afhængighederne er låst til NCS v3.4.0 (Zephyr 4.4.0) via
-  west-manifestet. Det dækker `nrf_modem`, `mqtt_helper`, MCUboot og nanopb.
-- **Cloud:** Mosquitto og QuestDB er låst til en digest i
-  `cloud/docker/compose.yml`, og ingest bruger `paho-mqtt==2.1.0`.
+- **Firmware:** Der er en SBOM i SPDX 2.2 i
+  [`docs/sbom/`](sbom/README.md), genereret med NCS' `west ncs-sbom` ud fra
+  Simple's build. Den dækker applikationen, MCUboot og NSIB og lister de filer,
+  der faktisk er linket ind (1281 filer), fordelt på pakker med repository og
+  commit-hash: bl.a. Zephyr, `nrf_modem` (nrfxlib), MCUboot, mbedTLS, Oberon PSA
+  crypto og nanopb. Afhængighederne er låst til NCS v3.4.0 via west-manifestet.
+- **Cloud:** Mosquitto, QuestDB og ingest-imagets Python er låst til en digest
+  i `cloud/docker/`, og ingest bruger `paho-mqtt==2.1.0`.
+- **Sårbarheder:** Med SBOM'en kan det afgøres, om en ny sårbarhed, fx i
+  mbedTLS, rammer firmwaren, fordi den præcise version står i filen.
 
-**Status:** Ikke opfyldt. Versionerne er kendt og låst, men der er ingen
-maskinlæsbar SBOM. NCS har kommandoen `west ncs-sbom`, som kan generere en
-SPDX-SBOM ud fra buildet. Det er det oplagte næste skridt.
+**Status:** Opfyldt for komponenterne. SBOM'en skal genereres igen ved hver
+release (kommandoen står i [`docs/sbom/README.md`](sbom/README.md)).
+Sårbarhederne tjekkes ikke automatisk, og cloud-delen er dokumenteret med låste
+versioner frem for en SPDX-fil.
 
 ## Opsummering
 
@@ -262,4 +269,4 @@ SPDX-SBOM ud fra buildet. Det er det oplagte næste skridt.
 | CRA 1.d – Integritet | Delvist | TLS, ACL, ingen indgående kommandoer; MCUboot med standardnøgle (#70) |
 | CRA 1.h – Angrebsflade | Opfyldt | Kun udgående forbindelse fra enheden; firewall åbner kun 22, 80, 443 og 8883 |
 | CRA 1.j – Registrering | Delvist | Logs på alle led; ingen central overvågning |
-| CRA 2.1 – SBOM | Ikke opfyldt | Versioner låst; SBOM kan laves med `west ncs-sbom` |
+| CRA 2.1 – SBOM | Opfyldt | SPDX-SBOM for firmwaren i `docs/sbom/`; cloud-versioner låst med digest |
