@@ -68,7 +68,8 @@ Hvor de seks krav er implementeret:
 | Ingest (SAR) | ✔ egen MQTT-bruger, kun læs | ✔ batches, afviste payloads | – | ✔ afviser ugyldige payloads, retry | – | – |
 | QuestDB (SAR) | – (intet login; kun via værtens 127.0.0.1 og containerne på samme netværk) | – | – | – | delvist: ikke krypteret på disk | – |
 
-QuestDB's manglende adskillelse af læse- og skriveadgang følges i #107.
+QuestDB's manglende adskillelse af læse- og skriveadgang er bevidst fravalgt; se
+[Mindste privilegier](mindste-privilegier.md#bevidst-fravalgt).
 
 ## Security Level
 
@@ -227,6 +228,11 @@ transit og i lagret data. Grundkrav på alle niveauer.
 | Mosquitto | Ukrypteret MQTT (1883) findes kun på det interne Docker-netværk | `backend` med `internal: true` i `cloud/docker/compose.yml` | Opfyldt |
 | VPS | Ingest-credentials i `/etc/projekt-c/mqtt.env` (root, 600) | `env_file` i `compose.yml` | Opfyldt |
 | QuestDB | Ikke udgivet på internettet: kun via værtens `127.0.0.1:9000` og containerne på `edge` og `backend` | `ports` og `networks` i `compose.yml` | Delvist: ikke krypteret på disk |
+
+QuestDB's HTTP-API har intet login, så processer på VPS'en kan læse og skrive
+via `127.0.0.1:9000`. En løsning med en read-only-bruger til websitet og login
+til ingest er testet, men bevidst fravalgt; se
+[Mindste privilegier](mindste-privilegier.md#bevidst-fravalgt).
 
 **Afgrænsning:** Den, der har fysisk adgang til enheden eller firmwarefilen,
 kan læse passwordet. Data i QuestDB er ikke krypteret på disken. Begge dele er
@@ -398,8 +404,11 @@ beskytter ikke mod en angriber, der selv bygger firmware. Egen nøgle følges i
 - Docker udgiver kun port 8883 på alle interfaces. QuestDB er kun udgivet på
   værtens `127.0.0.1`, og ingest har ingen udgivne porte og ingen adgang til
   internettet (`internal: true`).
-- Ingest kører med read-only filsystem, uden Linux-capabilities
-  (`cap_drop: [ALL]`) og med `no-new-privileges`.
+- Alle containere kører med egen bruger, read-only filsystem, uden
+  Linux-capabilities (`cap_drop: [ALL]`), med `no-new-privileges` og med
+  grænser for hukommelse og processer.
+- Tjenester, projektet ikke bruger, er fjernet eller slået fra: phpMyAdmin fra
+  Webdocks standardopsætning, MariaDB, Redis og Memcached (2026-10-29).
 - SSH accepterer kun nøgler (`PasswordAuthentication no`). fail2ban og
   automatiske sikkerhedsopdateringer (`unattended-upgrades`) er aktive.
 - Docker-images er låst til en bestemt digest, så der kun køres testede
@@ -410,9 +419,11 @@ beskytter ikke mod en angriber, der selv bygger firmware. Egen nøgle følges i
   projektet ikke bruger, er stoppet og slået fra, og dens porte (21 og
   50000-50099) er fjernet fra firewallen (2026-10-21).
 
+Hele systemet er kortlagt efter mindste privilegier i
+[Mindste privilegier](mindste-privilegier.md).
+
 **Status:** Opfyldt. Den tilbageværende begrænsning er, at root-login med
-nøgle er tilladt. Den kan fjernes, når alle administratorer bruger egne
-brugere med sudo.
+nøgle er tilladt. Den slås fra før eksamen.
 
 ### 1.j – Registrering og overvågning af aktivitet
 
