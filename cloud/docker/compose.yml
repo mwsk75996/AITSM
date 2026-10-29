@@ -16,6 +16,13 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - /etc/mosquitto:/etc/mosquitto:ro   # passwd, acl og certs (certbot-hook)
       - /var/lib/mosquitto:/mosquitto/data # persistence: vedvarende ingest-session
+    # Mindste privilegier (#107): lytter på 8883 (>1024) som almindelig bruger og
+    # skriver kun til data-mappen, så den behøver ingen capabilities.
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    pids_limit: 32
 
   questdb:
     # Samme image som CI (questdb-dedup.yml).
@@ -31,6 +38,14 @@ services:
       - "127.0.0.1:9000:9000"  # kun lokalt, til api.php og verifikationsscripts
     volumes:
       - /var/lib/questdb:/var/lib/questdb
+    # Mindste privilegier (#107): kører som questdb-brugeren og skriver kun til
+    # datamappen og /tmp. Grænsen giver plads til heap (512 MB) og native memory.
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    pids_limit: 128
 
   ingest:
     build: ./ingest
@@ -52,6 +67,8 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    pids_limit: 32
     depends_on: [mosquitto, questdb]
 
 networks:
