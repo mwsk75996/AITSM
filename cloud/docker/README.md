@@ -32,10 +32,24 @@ mod den version, der kører i drift. Ingest-imaget er Python 3.12 med
   `/var/www/html/projekt-c/cloud/mqtt/` og genstarter containeren med
   `docker compose restart ingest`. Mappen mountes i stedet for filen, fordi en
   bind-mount af en enkelt fil holder fast i den gamle inode.
-- **Ingest kører låst ned.** Som værtens `projektc`-bruger (995:986),
-  read-only rodfilsystem, `cap_drop: [ALL]` og `no-new-privileges`.
-  `init: true` giver tini som PID 1, så SIGTERM når Python og stop tager
-  ~1 s i stedet for 10 s.
+- **Alle containere kører låst ned (#107).** Hver kører som sin egen
+  værtsbruger med read-only rodfilsystem, `cap_drop: [ALL]`,
+  `no-new-privileges` og grænser for hukommelse og antal processer. Ingen af
+  dem har brug for root eller capabilities: Mosquitto lytter på 8883 (over
+  1024), og alle skriver kun til deres egen datamappe. QuestDB får desuden en
+  `tmpfs` på `/tmp` til JVM'en.
+
+  | Service | Bruger | Skriver til | Hukommelse | Processer |
+  | --- | --- | --- | --- | --- |
+  | `mosquitto` | 113:116 | `/mosquitto/data` | 64 MB | 32 |
+  | `questdb` | 997:987 | `/var/lib/questdb`, `/tmp` (tmpfs) | 768 MB | 128 |
+  | `ingest` | 995:986 | intet | 64 MB | 32 |
+
+  Grænserne er sat ud fra forbruget i drift (2026-10-29): Mosquitto ca. 6 MB
+  og 1 proces, ingest ca. 25 MB og 3 processer, QuestDB ca. 420 MB og 38
+  tråde med en JVM-heap på højst 512 MB.
+- **Ingest stopper hurtigt.** `init: true` giver tini som PID 1, så SIGTERM
+  når Python og stop tager ~1 s i stedet for 10 s.
 - **Credentials bliver på værten.** `env_file: /etc/projekt-c/mqtt.env`
   (root 600) læses af Docker ved opstart; filen kopieres ikke ind i imaget.
 - **Samme datamapper som før.** Containerne bind-mounter de eksisterende

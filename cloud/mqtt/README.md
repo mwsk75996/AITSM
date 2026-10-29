@@ -127,12 +127,14 @@ desuden ingen listener, så ACL'en var reelt slået fra.
 
 VPS'en bruger derfor `per_listener_settings false` med `allow_anonymous`,
 `password_file` og `acl_file` angivet én gang; Mosquitto afviser gentagne
-værdier i den tilstand. ACL'en giver `thingy91x` skriveadgang og `cloud_ingest`
-læseadgang til `aitsm/+/telemetry`. Efter #66 har `thingy91x` også
-skriveadgang til `spBv1.0/aitsm/NBIRTH/thingy91x` og
-`spBv1.0/aitsm/NDATA/thingy91x`, og `cloud_ingest` læser
-`spBv1.0/+/NBIRTH/+` og `spBv1.0/+/NDATA/+`. Testbrokeren i `tests/mosquitto/` har samme
-tilstand og en tilsvarende ACL, og udfaldstesten stopper, før ingest stoppes,
+værdier i den tilstand. ACL'en giver `thingy91x` skriveadgang til
+`spBv1.0/aitsm/NBIRTH/thingy91x` og `spBv1.0/aitsm/NDATA/thingy91x` og intet
+andet. Skriveadgangen til det gamle JSON-emne `aitsm/+/telemetry` er fjernet
+(#107), fordi Simple kun bruger SparkplugB. `cloud_ingest` læser
+`spBv1.0/+/NBIRTH/+`, `spBv1.0/+/NDATA/+` og `aitsm/+/telemetry`. Testbrokeren
+i `tests/mosquitto/` har samme tilstand. Dens anonyme testklient må stadig
+skrive til `aitsm/+/telemetry`, fordi integrationstestene bruger ingests
+JSON-vej, og udfaldstesten stopper, før ingest stoppes,
 hvis brokeren har `per_listener_settings true`.
 
 Brokeren og QuestDB kører i Docker på VPS'en. Den aktive broker-konfiguration

@@ -1,4 +1,5 @@
-# Anonymous test publisher, like thingy91x on the VPS.
+# Anonymous test publisher. Unlike thingy91x on the VPS it may also write the
+# old JSON topic, because the integration tests use ingest's JSON path (#107).
 topic write aitsm/+/telemetry
 topic write spBv1.0/aitsm/NBIRTH/thingy91x
 topic write spBv1.0/aitsm/NDATA/thingy91x
