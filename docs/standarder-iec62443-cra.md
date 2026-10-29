@@ -1,144 +1,257 @@
 # Standarder: IEC 62443-4-2 og CRA
 
-Denne redegørelse dækker issue #11. Formålet er ikke fuld compliance, men at
-udvælge relevante punkter fra IEC 62443-4-2 og CRA Annex I og argumentere for,
-hvordan løsningen adresserer dem, og hvor grænserne går.
-
-Redegørelsen beskriver afleveringsversionen [`Simple/`](../Simple/README.md) og
-den fælles cloud i [`cloud/`](../cloud/). Original bygger på samme principper
-(TLS, CA i modemmet, samme broker og ACL), men har flere moduler.
+Denne redegørelse dækker issue #11 og #106. Formålet er ikke fuld compliance,
+men at udvælge relevante krav fra IEC 62443-4-2 og CRA Annex I og argumentere
+for, hvordan løsningen adresserer dem, og hvor grænserne går.
 
 Kilder:
 
-- IEC 62443-4-2: [`references/standards/iec-62443-4-2.pdf`](references/standards/iec-62443-4-2.pdf).
+- IEC 62443-4-2: ANSI/ISA-62443-4-2-2018,
+  [`references/standards/iec-62443-4-2.pdf`](references/standards/iec-62443-4-2.pdf).
+  Afsnitsnumrene herunder henviser til standarden.
 - CRA Annex I: de udvalgte paragraffer i
   [kravspecifikationen](references/requirements/ucl-mt-project-requirements-2026-08-26.pdf),
   som citerer Kommissionens forslag (15.9.2022). Nummereringen herunder følger
   kravspecifikationen. I den vedtagne forordning har punkterne andre bogstaver.
 
-## Overblik over løsningen
+## Afgrænsning
+
+- Vurderingen gælder afleveringsversionen [`Simple/`](../Simple/README.md) og
+  den fælles cloud i [`cloud/`](../cloud/). **Original er uden for scope.**
+- Vurderingen dækker de seks udvalgte krav. Den er ikke et samlet opnået
+  Security Level og ikke en certificering.
+- Modbus (#93) er ikke med endnu. Når løsningen er afklaret, vurderes bl.a.
+  CR 5.1 (netværkssegmentering) og CR 2.1 (autorisation), fordi Modbus hverken
+  har login eller kryptering.
+
+## Systemkomponenter og zoner
+
+IEC 62443-4-2 opdeler komponenter i fire typer: embedded device (EDR), host
+device (HDR), network device (NDR) og software application (SAR). CR-kravene
+gælder alle typer. EDR-kravene gælder kun embedded devices.
+
+| Komponent | Type | Zone | Rolle |
+| --- | --- | --- | --- |
+| Thingy:91 X med Simple-firmware | EDR | Felt | Måler og sender telemetri |
+| VPS'en (Ubuntu med UFW, SSH og fail2ban) | HDR | Cloud | Værten for containerne og websitet |
+| Mosquitto | SAR | Cloud | MQTT-broker, eneste tjeneste ud mod internettet for enheden |
+| Ingest (`cloud/mqtt/ingest.py`) | SAR | Cloud | Afkoder SparkplugB og skriver til QuestDB |
+| QuestDB | SAR | Cloud | Tidsseriedatabase |
 
 ```
-Thingy:91 X ──MQTT/TLS :8883──▶ Mosquitto ──internt Docker-netværk──▶ ingest ──▶ QuestDB
-(kun udgående)                  (Docker)                              (Docker)     (127.0.0.1)
+ Zone: Felt                    Conduit                      Zone: Cloud
+┌──────────────┐   MQTT over TLS :8883 via NB-IoT   ┌──────────────────────────────────┐
+│ Thingy:91 X  │ ─────────────────────────────────▶ │ Mosquitto ─▶ ingest ─▶ QuestDB   │
+│ (EDR)        │   ikke-betroet net (internet)      │ (SAR)      (SAR)       (SAR)     │
+└──────────────┘                                    │            └─ internt netværk ─┘ │
+                                                    └──────────────────────────────────┘
 ```
 
-- Enheden åbner kun én udgående forbindelse: MQTT over TLS til egen broker.
-- Brokeren er den eneste tjeneste, der er udgivet fra Docker til internettet.
-- Ingest og QuestDB kan ikke nås udefra.
+- Enheden åbner kun én udgående forbindelse og lytter ikke på nogen porte.
+- Conduit'en er den eneste vej mellem zonerne. Brokeren er den eneste tjeneste,
+  Docker udgiver på internettet.
+- Ingest og QuestDB ligger på et internt Docker-netværk (`internal: true`) uden
+  adgang udefra. QuestDB kan kun nås fra værten selv (`127.0.0.1:9000`).
 
-## IEC 62443-4-2
+Hvor de seks krav er implementeret:
 
-### CR 3.1 – Communication integrity
+| Komponent | CR 1.2 | CR 2.8 | CR 3.1 | CR 3.7 | CR 4.1 | EDR 3.14 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Thingy:91 X (EDR) | ✔ MQTT-login | ✔ Zephyr-log | ✔ TLS, verificerer brokeren | ✔ backoff, PUBACK-timeout | delvist: password i flash | ✔ NSIB og MCUboot |
+| VPS (HDR) | ✔ SSH kun med nøgler | ✔ journal, fail2ban | – | – | ✔ credentials-fil kun for root | – |
+| Mosquitto (SAR) | ✔ ingen anonyme, ACL | ✔ forbindelser, afviste logins | ✔ TLS ≥ 1.2 | – | ✔ 1883 kun internt | – |
+| Ingest (SAR) | ✔ egen MQTT-bruger, kun læs | ✔ batches, afviste payloads | – | ✔ afviser ugyldige payloads, retry | – | – |
+| QuestDB (SAR) | – (intet login, kun lokal adgang) | – | – | – | delvist: ikke krypteret på disk | – |
 
-**Krav:** Komponenten skal beskytte integriteten af transmitteret information.
+QuestDB's manglende adskillelse af læse- og skriveadgang følges i #107.
 
-**Hvordan løsningen adresserer det:**
+## Security Level
 
-- Al telemetri sendes over TLS på port 8883 (`CONFIG_MQTT_LIB_TLS`,
-  `CONFIG_MQTT_HELPER_PORT=8883` i `Simple/app/prj.conf`). TLS beskytter hver
-  pakke med en integritetskontrol, så ændringer undervejs opdages og afvises.
-- Enheden verificerer brokerens certifikat. Let's Encrypts rodcertifikat
-  (ISRG Root X1, `Simple/app/certs/ca-cert.pem`) skrives ved opstart ind i
-  modemmets nøglelager under sec tag 42 med `modem_key_mgmt_write()`
-  (`provision_ca_certificate()` i `Simple/app/src/mqtt_client.c`). NCS'
-  `mqtt_helper` sætter `peer_verify` til `REQUIRED` og kontrollerer
-  hostnavnet `aitsm.vps.webdock.cloud`, så en falsk broker med et andet
-  certifikat afvises.
-- Brokeren accepterer mindst TLS 1.2 (`tls_version tlsv1.2` i
-  `cloud/docker/mosquitto/mosquitto.conf`). Certifikatet fornyes automatisk af
-  certbot.
-- Enheden autentificeres over for brokeren med brugernavn og password.
-  Anonyme klienter afvises (`allow_anonymous false`).
-- Ud over transporten sikrer applikationen, at data kommer frem i rette
-  form: NDATA sendes med QoS 1, og batchen slettes først fra bufferen, når
-  brokeren har kvitteret med PUBACK (`handle_puback()` i `main.c`).
-  SparkplugB's `seq` og `bdSeq` gør det muligt at se tabte eller gentagne
-  beskeder, og QuestDB fjerner dubletter
-  (`cloud/mqtt/migrations/001_enable_dedup.sql`).
+Standarden skelner mellem:
 
-**Afgrænsning:** Brokeren autentificerer ikke enheden med certifikat (mTLS,
-#71), kun med brugernavn og password. Payloads er ikke signeret ende til ende,
-så integriteten hviler på TLS mellem enhed og broker.
+- **SL-T** (target): det sikkerhedsniveau, systemet eller en zone skal nå.
+- **SL-C** (capability): det niveau, en komponent kan levere for et krav.
 
-### CR 4.1 – Information confidentiality
+### Valgt SL-T
 
-**Krav:** Beskyt fortroligheden af information på kommunikationskanaler og i
-lagret data.
+- **SL 1 for systemet.** SL 1 beskytter mod tilfældige fejl og simple
+  overtrædelser. Telemetrien (temperatur og batteri) er hverken følsom eller
+  sikkerhedskritisk, og systemet styrer ikke noget fysisk.
+- **SL 2 for conduit'en Thingy → broker.** Den går over et ikke-betroet net og
+  er den eneste vej ind i Cloud-zonen. Derfor sikres den et niveau højere.
+- **Uden for trusselsmodellen:** fysisk adgang til enheden. Det er en prototype
+  på et udviklingskit, og kravspecifikationen udelukker selv avanceret PKI.
 
-**Hvordan løsningen adresserer det:**
+### SL-mapping for de seks krav
 
-- Data i transit er krypteret med TLS mellem enhed og broker. Port 1883 uden
-  TLS findes kun på det interne Docker-netværk mellem broker og ingest
-  (`backend`, `internal: true` i `cloud/docker/compose.yml`) og udgives ikke
-  på værten.
-- MQTT-passwordet ligger ikke i repositoriet. Det gives som miljøvariabel
-  (`AITSM_MQTT_PASSWORD`) ved build og skrives kun til den ignorerede
-  build-mappe (`Simple/app/CMakeLists.txt`). Firmwaren nægter at starte uden
-  password (`aitsm_mqtt_init()`).
-- På serveren ligger ingest-credentials i `/etc/projekt-c/mqtt.env` (root,
-  600), og QuestDB kan kun nås fra værten selv (`127.0.0.1:9000`).
+| Krav | SL 1 | SL 2 | SL 3–4 | Afsnit |
+| --- | --- | --- | --- | --- |
+| CR 1.2 | ikke valgt | grundkrav | RE(1) unik identifikation | 5.4.4 |
+| CR 2.8 | grundkrav | grundkrav | grundkrav | 6.10.4 |
+| CR 3.1 | grundkrav | RE(1) communication authentication | RE(1) | 7.3.4 |
+| CR 3.7 | grundkrav | grundkrav | grundkrav | 7.9.4 |
+| CR 4.1 | grundkrav | grundkrav | grundkrav | 8.3.4 |
+| EDR 3.14 | grundkrav | RE(1) authenticity of the boot process | RE(1) | 13.9.4 |
 
-**Afgrænsning:** Passwordet bliver en del af firmwarefilen og ligger
-ukrypteret i enhedens flash. Den, der har fysisk adgang til enheden eller
-firmwarefilen, kan læse det. Data i QuestDB er ikke krypteret på disken.
-Begge dele er en bevidst afgrænsning: projektet omfatter ikke avanceret
-nøglehåndtering, og telemetrien (temperatur og batteri) er ikke følsom.
+### Vurderet SL-C
 
-### CR 3.7 – Error handling
+| Krav | Krævet til SL-T | Opnået SL-C | Gap |
+| --- | --- | --- | --- |
+| CR 1.2 | grundkrav (conduit SL 2) | SL 2 | Delt password og fast klient-id; RE(1) kræver unik identitet (#71) |
+| CR 2.8 | grundkrav | SL 1–4 | Log på enheden er ikke persistent |
+| CR 3.1 | RE(1) (conduit SL 2) | SL 2 | – |
+| CR 3.7 | grundkrav | SL 1–4 | – |
+| CR 4.1 | grundkrav | delvist | Password ukrypteret i flash, QuestDB ukrypteret på disk |
+| EDR 3.14 | grundkrav (SL 1) | SL 1 | RE(1) kræver egen root of trust (#70) |
 
-**Krav:** Fejltilstande skal identificeres og håndteres, uden at der afsløres
-information, som en modstander kan udnytte.
+CR 2.8 og CR 3.7 har ingen requirement enhancements, så grundkravet gælder på
+alle niveauer.
 
-**Hvordan løsningen adresserer det:**
+## Krav
 
-- Fejl logges med korte, faste beskeder og numeriske fejlkoder. Credentials
-  logges aldrig; kun hostnavnet nævnes:
+### CR 1.2 – Software process and device identification and authentication
 
-  ```c
-  LOG_ERR("Brokeren afviste forbindelsen, kode: %d", return_code);
-  LOG_ERR("Kunne ikke forbinde til %s: %d", hostname, err);
-  LOG_WRN("Ingen PUBACK efter %d s; lukker MQTT-forbindelsen", PUBACK_TIMEOUT_SECONDS);
-  ```
+**Krav (5.4):** Komponenter skal kunne identificere sig og autentificere sig
+over for andre komponenter. Kræves fra SL 2. RE(1) kræver unik identifikation
+og autentificering fra SL 3.
 
-- Fejl fører til en kontrolleret tilstand i stedet for et nedbrud:
-  - Mistet forbindelse: nye forsøg efter 5, 10, 20, 40 og derefter højst 60 s
-    (`schedule_reconnect()` i `main.c`).
-  - Død forbindelse uden fejlmelding fra modemmet: udebliver PUBACK i 120 s,
-    lukkes forbindelsen, og batchen sendes igen efter reconnect
-    (`check_puback_timeout()`).
-  - Fuld buffer: nye målinger springes over og tælles i loggen. Data, der
-    venter på at blive sendt, overskrives aldrig.
-  - Fejl ved opstart: enheden stopper og viser rødt på LED'en.
-- I cloud afviser ingest ugyldige payloads med en advarsel uden at gå ned, og
-  midlertidige skrivefejl til QuestDB prøves igen med backoff
-  (`DeliveryWorker` i `cloud/mqtt/ingest.py`).
-- Adfærden er testet på Thingy'en med broker-udfald og blokeret forbindelse
-  (se [Verifikation i Simple](../Simple/README.md#verifikation)).
+| Komponent | Implementering | Bevis | Status |
+| --- | --- | --- | --- |
+| Thingy:91 X | Logger ind på brokeren med brugernavn og password | `aitsm_mqtt_connect()` i `Simple/app/src/mqtt_client.c`; firmwaren starter ikke uden password (`aitsm_mqtt_init()`) | Opfyldt |
+| Mosquitto | Afviser anonyme klienter; ACL'en giver `thingy91x` skriveadgang til sine egne SparkplugB-topics og `cloud_ingest` kun læseadgang | `allow_anonymous false`, `password_file` og `acl_file` i `cloud/docker/mosquitto/mosquitto.conf` | Opfyldt |
+| Ingest | Egen MQTT-bruger (`cloud_ingest`) med læseadgang | ACL på brokeren | Opfyldt |
 
-**Afgrænsning:** Brokeren svarer med en MQTT-returkode ved afvist login.
-Det er standardadfærd i MQTT og ikke noget, projektet har ændret.
+**Afgrænsning:** Passwordet er fælles for enheden og ligger ukrypteret i
+firmwaren (`static char password[]` i `mqtt_client.c`). Klient-id'et er fast
+(`CONFIG_AITSM_SPARKPLUG_EDGE_NODE_ID`). Det er tilstrækkeligt med én enhed,
+men ikke en unik identitet i RE(1)'s forstand. RE(1) svarer til mTLS med en
+nøgle, der er unik for enheden (#71).
 
 ### CR 2.8 – Auditable events
 
-**Krav:** Komponenten skal kunne generere audit-records for bl.a. adgang,
-fejl og systemhændelser med tid, kilde, type og resultat.
+**Krav (6.10):** Komponenten skal kunne generere audit-records for bl.a.
+adgang, fejl og systemhændelser med tid, kilde, type og resultat. Grundkrav på
+alle niveauer.
 
-**Hvordan løsningen adresserer det:**
-
-- Enheden logger med Zephyrs logging-subsystem, ét logmodul pr. fil
-  (`LOG_MODULE_REGISTER`): netværksstatus og tildelt PSM (`network.c`),
-  forbindelse, afvisning og lukning af MQTT (`mqtt_client.c`) samt afsendelse,
-  PUBACK, timeout og oversprungne målinger (`main.c`).
-- Mosquitto logger forbindelser og afviste logins, og ingest logger
-  modtagne batches, afviste payloads og skrivefejl. Begge logs kan ses med
-  `docker compose logs` på VPS'en.
+| Komponent | Implementering | Bevis | Status |
+| --- | --- | --- | --- |
+| Thingy:91 X | Zephyrs logging-subsystem, ét logmodul pr. fil: netværksstatus og PSM, forbindelse, afvisning og lukning af MQTT, afsendelse, PUBACK, timeout og oversprungne målinger | `LOG_MODULE_REGISTER` i `network.c`, `mqtt_client.c` og `main.c` | Opfyldt |
+| Mosquitto | Logger forbindelser og afviste logins | `log_dest stdout`, `docker compose logs mosquitto` | Opfyldt |
+| Ingest | Logger modtagne batches med `seq`, afviste payloads og skrivefejl | `cloud/mqtt/ingest.py`, `docker compose logs ingest` | Opfyldt |
+| VPS | SSH-login i journalen; fail2ban blokerer gentagne fejlede forsøg | `journalctl`, `fail2ban-client status` | Opfyldt |
 
 **Afgrænsning:** Enhedens log er kun tilgængelig over den serielle
 forbindelse, persisteres ikke og har uptime som tidsstempel. Der er ingen
-central logopsamling. Kravene til lagring af audit-logs (CR 2.9), reaktion på
-audit-svigt (CR 2.10) og ekstern adgang til logs (CR 6.1) er derfor ikke
-omfattet.
+central logopsamling. Lagring af audit-logs (CR 2.9), reaktion på audit-svigt
+(CR 2.10) og ekstern adgang til logs (CR 6.1) er derfor ikke omfattet.
+
+### CR 3.1 – Communication integrity
+
+**Krav (7.3):** Komponenten skal beskytte integriteten af transmitteret
+information. RE(1) kræver fra SL 2, at modtageren kan verificere, at
+informationen er autentisk.
+
+| Komponent | Implementering | Bevis | Status |
+| --- | --- | --- | --- |
+| Thingy:91 X | TLS på port 8883; brokerens certifikat og hostnavn verificeres; CA'en ligger i modemmets nøglelager | `CONFIG_MQTT_LIB_TLS` og `CONFIG_MQTT_HELPER_PORT=8883` i `Simple/app/prj.conf`; `provision_ca_certificate()` i `mqtt_client.c`; `peer_verify` `REQUIRED` og `hostname` i NCS' `mqtt_helper` | Opfyldt med RE(1) |
+| Mosquitto | TLS 1.2 eller nyere; certifikat fra Let's Encrypt, fornyes af certbot | `tls_version tlsv1.2` i `mosquitto.conf` | Opfyldt |
+
+- **Grundkravet:** TLS beskytter hver pakke med en integritetskontrol, så
+  ændringer undervejs opdages og afvises.
+- **RE(1):** Begge ender verificerer modparten. Enheden verificerer brokerens
+  certifikat (Let's Encrypts rodcertifikat ISRG Root X1,
+  `Simple/app/certs/ca-cert.pem`, i sec tag 42) og hostnavnet
+  `aitsm.vps.webdock.cloud`. Brokeren autentificerer enheden med brugernavn og
+  password (CR 1.2).
+- **Ud over transporten:** NDATA sendes med QoS 1, og batchen slettes først,
+  når brokeren har kvitteret med PUBACK (`handle_puback()` i `main.c`).
+  SparkplugB's `seq` og `bdSeq` viser tabte eller gentagne beskeder, og QuestDB
+  fjerner dubletter (`cloud/mqtt/migrations/001_enable_dedup.sql`).
+
+**Afgrænsning:** Payloads er ikke signeret ende til ende, så integriteten
+hviler på TLS mellem enhed og broker.
+
+### CR 3.7 – Error handling
+
+**Krav (7.9):** Fejltilstande skal identificeres og håndteres, uden at der
+afsløres information, som en modstander kan udnytte. Grundkrav på alle niveauer.
+
+| Komponent | Implementering | Bevis | Status |
+| --- | --- | --- | --- |
+| Thingy:91 X | Faste fejlbeskeder med numeriske koder og ingen credentials; backoff 5–60 s; PUBACK-timeout 120 s; fuld buffer springer nye målinger over og overskriver intet | `schedule_reconnect()` og `check_puback_timeout()` i `main.c`; test på hardware i [Verifikation](../Simple/README.md#verifikation) | Opfyldt |
+| Ingest | Afviser ugyldige payloads uden at gå ned; prøver midlertidige skrivefejl igen med backoff | `DeliveryWorker` i `cloud/mqtt/ingest.py`; `cloud/mqtt/tests/` | Opfyldt |
+
+Eksempler på fejlbeskeder fra enheden:
+
+```c
+LOG_ERR("Brokeren afviste forbindelsen, kode: %d", return_code);
+LOG_ERR("Kunne ikke forbinde til %s: %d", hostname, err);
+LOG_WRN("Ingen PUBACK efter %d s; lukker MQTT-forbindelsen", PUBACK_TIMEOUT_SECONDS);
+```
+
+Fejl ved opstart stopper enheden og viser rødt på LED'en.
+
+**Afgrænsning:** Brokeren svarer med en MQTT-returkode ved afvist login. Det
+er standardadfærd i MQTT og ikke noget, projektet har ændret.
+
+### CR 4.1 – Information confidentiality
+
+**Krav (8.3):** Komponenten skal beskytte fortroligheden af information i
+transit og i lagret data. Grundkrav på alle niveauer.
+
+| Komponent | Implementering | Bevis | Status |
+| --- | --- | --- | --- |
+| Thingy:91 X | TLS i transit; passwordet gives ved build og ligger ikke i repositoriet | `AITSM_MQTT_PASSWORD` i `Simple/app/CMakeLists.txt` | Delvist: password ukrypteret i flash |
+| Mosquitto | Ukrypteret MQTT (1883) findes kun på det interne Docker-netværk | `backend` med `internal: true` i `cloud/docker/compose.yml` | Opfyldt |
+| VPS | Ingest-credentials i `/etc/projekt-c/mqtt.env` (root, 600) | `env_file` i `compose.yml` | Opfyldt |
+| QuestDB | Kun lokal adgang (`127.0.0.1:9000`) | `ports` i `compose.yml` | Delvist: ikke krypteret på disk |
+
+**Afgrænsning:** Den, der har fysisk adgang til enheden eller firmwarefilen,
+kan læse passwordet. Data i QuestDB er ikke krypteret på disken. Begge dele er
+en bevidst afgrænsning: projektet omfatter ikke avanceret nøglehåndtering, og
+telemetrien er ikke følsom.
+
+### EDR 3.14 – Integrity of the boot process
+
+**Krav (13.9):** Embedded devices skal verificere integriteten af firmware,
+software og konfiguration, før de bruges ved opstart. RE(1) kræver fra SL 2, at
+verifikationen sker med producentens egen root of trust, så firmwarens
+autenticitet er bevist.
+
+| Komponent | Implementering | Bevis | Status |
+| --- | --- | --- | --- |
+| Thingy:91 X | Opstartskæde: NSIB (`b0`) verificerer MCUboot, og MCUboot verificerer applikationens ECDSA P-256-signatur, før den køres. Konfigurationen fra `prj.conf` er bygget ind i imaget og dermed dækket | `SB_CONFIG_SECURE_BOOT_APPCORE=y`, `SB_CONFIG_BOOTLOADER_MCUBOOT=y` og `SB_CONFIG_BOOT_SIGNATURE_TYPE_ECDSA_P256=y` i buildets `zephyr/.config`; de signerede images `signed_by_mcuboot_and_b0_*.hex` | Opfyldt (SL 1) |
+
+**Afgrænsning:** Begge led bruger NCS' offentlige standardnøgler:
+`nrf/boards/nordic/thingy91x/nsib_signing_key.pem` til NSIB og
+`bootloader/mcuboot/root-ec-p256.pem` til MCUboot. Verifikationen opdager
+ødelagt eller ændret firmware, men beskytter ikke mod en angriber, der selv
+signerer firmware med samme nøgle. RE(1) kræver egne nøgler (#70).
+
+## Hvad et højere SL ville kræve
+
+Medtages enhedens øvrige EDR-krav, ligger Thingy'en på SL-C 1, fordi flere af
+dem først kræves fra SL 2. Det er forbedringer til et højere mål, ikke krav til
+vores SL-T.
+
+| Krav | Fra | Hvad der mangler | Issue |
+| --- | --- | --- | --- |
+| EDR 3.14 RE(1) Authenticity of the boot process | SL 2 | Egne signeringsnøgler til NSIB og MCUboot | #70 |
+| EDR 3.10 RE(1) Update authenticity and integrity | SL 2 | Samme: opdateringer er kun signeret med standardnøglen | #70 |
+| EDR 3.12 Provisioning product supplier roots of trust | SL 2 | Egen root of trust skrevet til enheden | #70 |
+| EDR 2.13 Use of physical diagnostic and test interfaces | SL 2 | Firmwaren låser ikke debug-porten selv (`CONFIG_NRF_APPROTECT_USE_UICR=y`, ikke `..._LOCK`). Tilstanden afhænger af UICR og er ikke verificeret på boardet | – |
+| CR 1.2 RE(1) Unique identification and authentication | SL 3 | Unik identitet pr. enhed, fx mTLS med en nøgle genereret i modemmet | #71 |
+
+## Minimum for det valgte SL-T
+
+| Krav | Krævet til SL-T | Implementeret | Fil |
+| --- | --- | --- | --- |
+| CR 1.2 | grundkrav (conduit SL 2) | ✔ login, ingen anonyme, ACL | `Simple/app/src/mqtt_client.c`, `cloud/docker/mosquitto/mosquitto.conf` |
+| CR 2.8 | grundkrav | ✔ (log ikke persistent på enheden) | `Simple/app/src/network.c`, `mqtt_client.c`, `main.c`, `cloud/mqtt/ingest.py` |
+| CR 3.1 | RE(1) (conduit SL 2) | ✔ TLS på 8883, certifikat og hostnavn verificeres, PUBACK før sletning | `Simple/app/prj.conf`, `mqtt_client.c`, `main.c` |
+| CR 3.7 | grundkrav | ✔ backoff, PUBACK-timeout, intet overskrives | `Simple/app/src/main.c`, `cloud/mqtt/ingest.py` |
+| CR 4.1 | grundkrav | delvist: TLS i transit; password og database ukrypteret at rest | `Simple/app/CMakeLists.txt`, `cloud/docker/compose.yml` |
+| EDR 3.14 | grundkrav | ✔ NSIB og MCUboot verificerer opstarten | Buildets `zephyr/.config` (sysbuild) |
 
 ## CRA Annex I
 
@@ -261,10 +374,12 @@ versioner frem for en SPDX-fil.
 
 | Punkt | Status | Begrundelse |
 |---|---|---|
-| CR 3.1 – Communication integrity | Opfyldt | TLS med verificeret servercertifikat og hostnavn; PUBACK før sletning |
-| CR 4.1 – Information confidentiality | Delvist | TLS i transit; password ukrypteret i firmwaren |
+| CR 1.2 – Device identification and authentication | Opfyldt (SL-C 2) | MQTT-login, ingen anonyme, ACL; delt password og fast klient-id |
+| CR 2.8 – Auditable events | Opfyldt | Logging på enhed, broker, ingest og VPS; ingen persistent log på enheden |
+| CR 3.1 – Communication integrity | Opfyldt (SL-C 2, RE(1)) | TLS med verificeret servercertifikat og hostnavn; PUBACK før sletning |
 | CR 3.7 – Error handling | Opfyldt | Faste fejlkoder uden credentials; backoff, PUBACK-timeout, intet overskrives |
-| CR 2.8 – Auditable events | Delvist | Logging på enhed, broker og ingest; ingen persistent log på enheden |
+| CR 4.1 – Information confidentiality | Delvist | TLS i transit; password i flash og database ukrypteret at rest |
+| EDR 3.14 – Integrity of the boot process | Opfyldt (SL-C 1) | NSIB og MCUboot verificerer opstarten; standardnøgler, så ikke RE(1) (#70) |
 | CRA 1.c – Fortrolighed | Opfyldt i transit, delvist at rest | TLS; password og database er ikke krypteret at rest |
 | CRA 1.d – Integritet | Delvist | TLS, ACL, ingen indgående kommandoer; MCUboot med standardnøgle (#70) |
 | CRA 1.h – Angrebsflade | Opfyldt | Kun udgående forbindelse fra enheden; firewall åbner kun 22, 80, 443 og 8883 |
