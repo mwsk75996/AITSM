@@ -50,8 +50,13 @@ gælder alle typer. EDR-kravene gælder kun embedded devices.
 - Enheden åbner kun én udgående forbindelse og lytter ikke på nogen porte.
 - Conduit'en er den eneste vej mellem zonerne. Brokeren er den eneste tjeneste,
   Docker udgiver på internettet.
-- Ingest og QuestDB ligger på et internt Docker-netværk (`internal: true`) uden
-  adgang udefra. QuestDB kan kun nås fra værten selv (`127.0.0.1:9000`).
+- Ingest ligger kun på det interne Docker-netværk `backend` (`internal: true`)
+  uden adgang udefra eller til internettet.
+- QuestDB er udgivet på værtens `127.0.0.1:9000`, så fra værten kan den kun nås
+  lokalt, fx af `api.php`. Den er desuden tilsluttet Docker-netværkene `edge` og
+  `backend` og kan derfor nås af de andre containere på samme netværk via
+  `questdb:9000`. Ingest skriver fx til `http://questdb:9000/write`, og
+  Mosquitto, som også er på begge netværk, kan teknisk set nå den.
 
 Hvor de seks krav er implementeret:
 
@@ -61,7 +66,7 @@ Hvor de seks krav er implementeret:
 | VPS (HDR) | ✔ SSH kun med nøgler | ✔ journal, fail2ban | – | – | ✔ credentials-fil kun for root | – |
 | Mosquitto (SAR) | ✔ ingen anonyme, ACL | ✔ forbindelser, afviste logins | ✔ TLS ≥ 1.2 | – | ✔ 1883 kun internt | – |
 | Ingest (SAR) | ✔ egen MQTT-bruger, kun læs | ✔ batches, afviste payloads | – | ✔ afviser ugyldige payloads, retry | – | – |
-| QuestDB (SAR) | – (intet login, kun lokal adgang) | – | – | – | delvist: ikke krypteret på disk | – |
+| QuestDB (SAR) | – (intet login; kun via værtens 127.0.0.1 og containerne på samme netværk) | – | – | – | delvist: ikke krypteret på disk | – |
 
 QuestDB's manglende adskillelse af læse- og skriveadgang følges i #107.
 
@@ -98,7 +103,7 @@ Standarden skelner mellem:
 | Krav | Krævet til SL-T | Opnået SL-C | Gap |
 | --- | --- | --- | --- |
 | CR 1.2 | grundkrav (conduit SL 2) | SL 2 | Delt password og fast klient-id; RE(1) kræver unik identitet (#71) |
-| CR 2.8 | grundkrav | grundkrav adresseret | Log på enheden er ikke persistent |
+| CR 2.8 | grundkrav | delvist adresseret | Ingen hændelses-id eller kategorifelt; konfigurationsændringer og backup logges ikke; log på enheden er ikke persistent |
 | CR 3.1 | RE(1) (conduit SL 2) | SL 2 | – |
 | CR 3.7 | grundkrav | grundkrav adresseret | – |
 | CR 4.1 | grundkrav | delvist | Password ukrypteret i flash, QuestDB ukrypteret på disk |
@@ -131,16 +136,31 @@ nøgle, der er unik for hver enhed (#71).
 
 ### CR 2.8 – Auditable events
 
-**Krav (6.10):** Komponenten skal kunne generere audit-records for bl.a.
-adgang, fejl og systemhændelser med tid, kilde, type og resultat. Grundkrav på
-alle niveauer.
+**Krav (6.10):** Komponenten skal kunne generere audit-records for kategorierne
+adgangskontrol, fejl i forespørgsler, systemhændelser, backup og gendannelse,
+konfigurationsændringer og hændelser i selve audit-loggen. Hver post skal have
+tidsstempel, kilde, kategori, type, hændelses-id og resultat. Grundkrav på alle
+niveauer.
 
 | Komponent | Implementering | Bevis | Status |
 | --- | --- | --- | --- |
-| Thingy:91 X | Zephyrs logging-subsystem, ét logmodul pr. fil: netværksstatus og PSM, forbindelse, afvisning og lukning af MQTT, afsendelse, PUBACK, timeout og oversprungne målinger | `LOG_MODULE_REGISTER` i `network.c`, `mqtt_client.c` og `main.c` | Opfyldt |
-| Mosquitto | Logger forbindelser og afviste logins | `log_dest stdout`, `docker compose logs mosquitto` | Opfyldt |
-| Ingest | Logger modtagne batches med `seq`, afviste payloads og skrivefejl | `cloud/mqtt/ingest.py`, `docker compose logs ingest` | Opfyldt |
-| VPS | SSH-login i journalen; fail2ban blokerer gentagne fejlede forsøg | `journalctl`, `fail2ban-client status` | Opfyldt |
+| Thingy:91 X | Zephyrs logging-subsystem, ét logmodul pr. fil: netværksstatus og PSM, forbindelse, afvisning og lukning af MQTT, afsendelse, PUBACK, timeout og oversprungne målinger | `LOG_MODULE_REGISTER` i `network.c`, `mqtt_client.c` og `main.c` | Adresseret |
+| Mosquitto | Logger forbindelser og afviste logins | `log_dest stdout`, `docker compose logs mosquitto` | Adresseret |
+| Ingest | Logger modtagne batches med `seq`, afviste payloads og skrivefejl | `cloud/mqtt/ingest.py`, `docker compose logs ingest` | Adresseret |
+| VPS | SSH-login i journalen; fail2ban blokerer gentagne fejlede forsøg | `journalctl`, `fail2ban-client status` | Adresseret |
+
+Logningen dækker adgangskontrol (forbindelser og afviste logins), fejl og
+systemhændelser. Hver logpost har tid, kilde (logmodul eller tjeneste),
+niveau og en tekst, der beskriver hændelsen og resultatet.
+
+**Ikke verificeret eller ikke dækket:**
+
+- Backup og gendannelse samt konfigurationsændringer logges ikke. Enhedens
+  konfiguration er bygget ind i firmwaren og kan ikke ændres under drift.
+- Logposterne har ikke et fast hændelses-id eller et felt for kategori. Det
+  fremgår kun af teksten og logmodulet.
+- Vi har ikke gennemgået, om alle relevante hændelser i Mosquitto og på VPS'en
+  logges med alle felterne.
 
 **Afgrænsning:** Enhedens log er kun tilgængelig over den serielle
 forbindelse, persisteres ikke og har uptime som tidsstempel. Der er ingen
@@ -206,7 +226,7 @@ transit og i lagret data. Grundkrav på alle niveauer.
 | Thingy:91 X | TLS i transit; passwordet gives ved build og ligger ikke i repositoriet | `AITSM_MQTT_PASSWORD` i `Simple/app/CMakeLists.txt` | Delvist: password ukrypteret i flash |
 | Mosquitto | Ukrypteret MQTT (1883) findes kun på det interne Docker-netværk | `backend` med `internal: true` i `cloud/docker/compose.yml` | Opfyldt |
 | VPS | Ingest-credentials i `/etc/projekt-c/mqtt.env` (root, 600) | `env_file` i `compose.yml` | Opfyldt |
-| QuestDB | Kun lokal adgang (`127.0.0.1:9000`) | `ports` i `compose.yml` | Delvist: ikke krypteret på disk |
+| QuestDB | Ikke udgivet på internettet: kun via værtens `127.0.0.1:9000` og containerne på `edge` og `backend` | `ports` og `networks` i `compose.yml` | Delvist: ikke krypteret på disk |
 
 **Afgrænsning:** Den, der har fysisk adgang til enheden eller firmwarefilen,
 kan læse passwordet. Data i QuestDB er ikke krypteret på disken. Begge dele er
@@ -240,14 +260,21 @@ på boardet.
 
 | # | Image | `imgtool verify` | Resultat på boardet |
 | --- | --- | --- | --- |
-| 1 | Gyldigt signeret Simple-image, hvor ét bogstav i logteksten `AITSM Simple starter` er ændret til `BITSM` | `Image has an invalid hash` | Uploadet (12 s). NSIB verificerer MCUboot (`Firmware signature verified`), men applikationen starter ikke. Ingen log i 45 s og ingen `BITSM Simple starter` |
+| 1 | Gyldigt signeret Simple-image, hvor ét bogstav i logteksten `AITSM Simple starter` er ændret til `BITSM` | `Image has an invalid hash` | Uploadet (12 s). Applikationen starter ikke: ingen applikationslog i 45 s og ingen `BITSM Simple starter`. MCUboot skriver ingen log |
 | 2 | Samme image uden ændringen (kontrol) | `Image was correctly validated` | Applikationen starter med det samme (`AITSM Simple starter`) |
 | 3 | Det oprindelige image (gendannelse) | `Image was correctly validated` | Applikationen starter og forbinder til brokeren |
 
-Ændringen i test 1 ligger i en logtekst og ville ikke få koden til at fejle.
-At applikationen ikke starter, skyldes derfor, at MCUboot afviser imaget, fordi
-hashen ikke passer. Testen viser samtidig, at NSIB verificerer MCUboots
-signatur ved hver opstart:
+**Observeret:** Det ændrede image startede ikke, mens det samme image uden
+ændringen startede med det samme. Den eneste forskel er ét bogstav i en
+logtekst, som ikke kan få koden til at fejle.
+
+**Konklusion, som testen understøtter:** MCUboot afviser imaget, fordi hashen
+ikke passer. MCUboot fra fabrikken skriver ingen log, så der er ingen direkte
+afvisningsmeddelelse, og testen beviser ikke alene, præcis hvorfor opstarten
+stoppede.
+
+NSIB skriver derimod i loggen. Ved opstarterne under testen viste den, at NSIB
+verificerer MCUboots signatur:
 
 ```
 Attempting to boot slot 0.
@@ -290,7 +317,7 @@ vores SL-T.
 
 | Krav | Fra | Hvad der mangler | Issue |
 | --- | --- | --- | --- |
-| EDR 3.14 RE(1) Authenticity of the boot process | SL 2 | Egne signeringsnøgler til NSIB og MCUboot. Bootloaderne fra fabrikken skal da udskiftes, hvilket kræver en debugger | #70 |
+| EDR 3.14 RE(1) Authenticity of the boot process | SL 2 | Egne signeringsnøgler til NSIB og MCUboot. Bootloaderne fra fabrikken skal da udskiftes, hvilket sandsynligvis kræver en debugger (ikke verificeret; afhænger af, hvilken nøgle NSIB bruger) | #70 |
 | EDR 3.10 RE(1) Update authenticity and integrity | SL 2 | Samme: opdateringer er kun signeret med standardnøglen | #70 |
 | EDR 3.12 Provisioning product supplier roots of trust | SL 2 | Egen root of trust skrevet til enheden | #70 |
 | EDR 2.13 Use of physical diagnostic and test interfaces | SL 2 | Firmwaren låser ikke debug-porten selv (`CONFIG_NRF_APPROTECT_USE_UICR=y`, ikke `..._LOCK`). Tilstanden afhænger af UICR og er ikke verificeret på boardet | – |
@@ -301,7 +328,7 @@ vores SL-T.
 | Krav | Krævet til SL-T | Implementeret | Fil |
 | --- | --- | --- | --- |
 | CR 1.2 | grundkrav (conduit SL 2) | ✔ login, ingen anonyme, ACL | `Simple/app/src/mqtt_client.c`, `cloud/docker/mosquitto/mosquitto.conf` |
-| CR 2.8 | grundkrav | ✔ (log ikke persistent på enheden) | `Simple/app/src/network.c`, `mqtt_client.c`, `main.c`, `cloud/mqtt/ingest.py` |
+| CR 2.8 | grundkrav | delvist: logning af adgang, fejl og systemhændelser; ingen hændelses-id, og log på enheden er ikke persistent | `Simple/app/src/network.c`, `mqtt_client.c`, `main.c`, `cloud/mqtt/ingest.py` |
 | CR 3.1 | RE(1) (conduit SL 2) | ✔ TLS på 8883, certifikat og hostnavn verificeres, PUBACK før sletning | `Simple/app/prj.conf`, `mqtt_client.c`, `main.c` |
 | CR 3.7 | grundkrav | ✔ backoff, PUBACK-timeout, intet overskrives | `Simple/app/src/main.c`, `cloud/mqtt/ingest.py` |
 | CR 4.1 | grundkrav | delvist: TLS i transit; password og database ukrypteret at rest | `Simple/app/CMakeLists.txt`, `cloud/docker/compose.yml` |
@@ -319,8 +346,9 @@ vores SL-T.
   servercertifikat (se CR 3.1 og CR 4.1). Ukrypteret MQTT findes kun på det
   interne Docker-netværk.
 - **At rest:** CA-certifikatet ligger i modemmets nøglelager. MQTT-passwordet
-  ligger ukrypteret i firmwaren, og QuestDB er ikke krypteret på disken, men kan
-  kun nås fra VPS'en selv.
+  ligger ukrypteret i firmwaren, og QuestDB er ikke krypteret på disken. QuestDB
+  kan ikke nås fra internettet, kun fra VPS'en selv og containerne på samme
+  Docker-netværk.
 
 **Status:** Opfyldt for data i transit. Delvist for data at rest.
 
@@ -340,8 +368,9 @@ vores SL-T.
 - **Rapportering:** Ugyldige payloads afvises af ingest og logges
   (`Rejected MQTT telemetry …`). Manglende PUBACK logges på enheden.
   SparkplugB's `seq` logges af ingest, så huller kan ses.
-- **Programmer:** MCUboot verificerer applikationen ved hver opstart og afviser
-  et image, der er ændret (testet på boardet, se EDR 3.14).
+- **Programmer:** MCUboot verificerer applikationen ved opstart. På boardet
+  startede et image med én ændret byte ikke, mens det uændrede image startede
+  (se EDR 3.14).
 
 **Status:** Delvist. MCUboot bruger NCS' standard-signeringsnøgle
 (`bootloader/mcuboot/root-ec-p256.pem`), som er offentlig, så verifikationen
@@ -366,8 +395,8 @@ beskytter ikke mod en angriber, der selv bygger firmware. Egen nøgle følges i
 
 **Cloud:**
 
-- Docker udgiver kun port 8883 på alle interfaces. QuestDB er bundet til
-  `127.0.0.1`, og ingest har ingen udgivne porte og ingen adgang til
+- Docker udgiver kun port 8883 på alle interfaces. QuestDB er kun udgivet på
+  værtens `127.0.0.1`, og ingest har ingen udgivne porte og ingen adgang til
   internettet (`internal: true`).
 - Ingest kører med read-only filsystem, uden Linux-capabilities
   (`cap_drop: [ALL]`) og med `no-new-privileges`.
@@ -430,11 +459,11 @@ versioner frem for en SPDX-fil.
 | Punkt | Status | Begrundelse |
 |---|---|---|
 | CR 1.2 – Device identification and authentication | Opfyldt (SL-C 2) | MQTT-login, ingen anonyme, ACL; delt password og fast klient-id |
-| CR 2.8 – Auditable events | Grundkrav adresseret | Logging på enhed, broker, ingest og VPS; ingen persistent log på enheden |
+| CR 2.8 – Auditable events | Delvist adresseret | Logging på enhed, broker, ingest og VPS; ingen persistent log på enheden |
 | CR 3.1 – Communication integrity | Opfyldt (SL-C 2, RE(1)) | TLS med verificeret servercertifikat og hostnavn; PUBACK før sletning |
 | CR 3.7 – Error handling | Grundkrav adresseret | Faste fejlkoder uden credentials; backoff, PUBACK-timeout, intet overskrives |
 | CR 4.1 – Information confidentiality | Delvist | TLS i transit; password i flash og database ukrypteret at rest |
-| EDR 3.14 – Integrity of the boot process | Opfyldt (SL-C 1) | MCUboot afviser et ændret image (testet på boardet); standardnøgler, så ikke RE(1) (#70) |
+| EDR 3.14 – Integrity of the boot process | Opfyldt (SL-C 1) | Et ændret image starter ikke på boardet, det uændrede gør; standardnøgler, så ikke RE(1) (#70) |
 | CRA 1.c – Fortrolighed | Opfyldt i transit, delvist at rest | TLS; password og database er ikke krypteret at rest |
 | CRA 1.d – Integritet | Delvist | TLS, ACL, ingen indgående kommandoer; MCUboot med standardnøgle (#70) |
 | CRA 1.h – Angrebsflade | Opfyldt | Kun udgående forbindelse fra enheden; firewall åbner kun 22, 80, 443 og 8883 |
