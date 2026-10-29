@@ -98,14 +98,16 @@ Standarden skelner mellem:
 | Krav | Krævet til SL-T | Opnået SL-C | Gap |
 | --- | --- | --- | --- |
 | CR 1.2 | grundkrav (conduit SL 2) | SL 2 | Delt password og fast klient-id; RE(1) kræver unik identitet (#71) |
-| CR 2.8 | grundkrav | SL 1–4 | Log på enheden er ikke persistent |
+| CR 2.8 | grundkrav | grundkrav adresseret | Log på enheden er ikke persistent |
 | CR 3.1 | RE(1) (conduit SL 2) | SL 2 | – |
-| CR 3.7 | grundkrav | SL 1–4 | – |
+| CR 3.7 | grundkrav | grundkrav adresseret | – |
 | CR 4.1 | grundkrav | delvist | Password ukrypteret i flash, QuestDB ukrypteret på disk |
-| EDR 3.14 | grundkrav (SL 1) | SL 1 | RE(1) kræver egen root of trust (#70) |
+| EDR 3.14 | grundkrav (SL 1) | SL 1, testet på boardet | RE(1) kræver egen root of trust (#70) |
 
-CR 2.8 og CR 3.7 har ingen requirement enhancements, så grundkravet gælder på
-alle niveauer.
+CR 2.8 og CR 3.7 har ingen requirement enhancements, så det samme grundkrav
+gælder på alle fire niveauer. Det betyder ikke, at komponenterne opnår SL-C 4.
+Vurderingen er kun, at de valgte tiltag adresserer grundkravet med de forbehold,
+der står under hvert krav.
 
 ## Krav
 
@@ -124,8 +126,8 @@ og autentificering fra SL 3.
 **Afgrænsning:** Passwordet er fælles for enheden og ligger ukrypteret i
 firmwaren (`static char password[]` i `mqtt_client.c`). Klient-id'et er fast
 (`CONFIG_AITSM_SPARKPLUG_EDGE_NODE_ID`). Det er tilstrækkeligt med én enhed,
-men ikke en unik identitet i RE(1)'s forstand. RE(1) svarer til mTLS med en
-nøgle, der er unik for enheden (#71).
+men ikke en unik identitet i RE(1)'s forstand. En mulig løsning er mTLS med en
+nøgle, der er unik for hver enhed (#71).
 
 ### CR 2.8 – Auditable events
 
@@ -220,13 +222,65 @@ autenticitet er bevist.
 
 | Komponent | Implementering | Bevis | Status |
 | --- | --- | --- | --- |
-| Thingy:91 X | Opstartskæde: NSIB (`b0`) verificerer MCUboot, og MCUboot verificerer applikationens ECDSA P-256-signatur, før den køres. Konfigurationen fra `prj.conf` er bygget ind i imaget og dermed dækket | `SB_CONFIG_SECURE_BOOT_APPCORE=y`, `SB_CONFIG_BOOTLOADER_MCUBOOT=y` og `SB_CONFIG_BOOT_SIGNATURE_TYPE_ECDSA_P256=y` i buildets `zephyr/.config`; de signerede images `signed_by_mcuboot_and_b0_*.hex` | Opfyldt (SL 1) |
+| Thingy:91 X | Opstartskæde: NSIB verificerer MCUboot, og MCUboot verificerer applikationens signatur, før den køres. Konfigurationen fra `prj.conf` er bygget ind i applikationsimaget og dermed dækket | Test på boardet (herunder) | Opfyldt (SL 1) |
 
-**Afgrænsning:** Begge led bruger NCS' offentlige standardnøgler:
-`nrf/boards/nordic/thingy91x/nsib_signing_key.pem` til NSIB og
-`bootloader/mcuboot/root-ec-p256.pem` til MCUboot. Verifikationen opdager
-ødelagt eller ændret firmware, men beskytter ikke mod en angriber, der selv
-signerer firmware med samme nøgle. RE(1) kræver egne nøgler (#70).
+Projektet bruger Nordics standard-bootkæde i NCS uden ændringer. MCUboot, NSIB
+og nøglerne er sat op i NCS' board-filer for Thingy:91 X
+(`nrf/boards/nordic/thingy91x/Kconfig.sysbuild`).
+
+Buildets konfiguration viser kun, hvordan buildet er sat op
+(`SB_CONFIG_SECURE_BOOT_APPCORE=y`, `SB_CONFIG_BOOTLOADER_MCUBOOT=y`,
+`SB_CONFIG_BOOT_SIGNATURE_TYPE_ECDSA_P256=y`). Vi flasher kun applikationen
+(`dfu_application.zip`), så det er de NSIB og MCUboot, Nordic har flashet fra
+fabrikken, der kører på boardet. Boardets opstartslog viser NCS v2.7.99 for
+NSIB og v3.4.0 for applikationen. Den faktiske adfærd er derfor testet
+på boardet.
+
+**Test på boardet (2026-10-29):**
+
+| # | Image | `imgtool verify` | Resultat på boardet |
+| --- | --- | --- | --- |
+| 1 | Gyldigt signeret Simple-image, hvor ét bogstav i logteksten `AITSM Simple starter` er ændret til `BITSM` | `Image has an invalid hash` | Uploadet (12 s). NSIB verificerer MCUboot (`Firmware signature verified`), men applikationen starter ikke. Ingen log i 45 s og ingen `BITSM Simple starter` |
+| 2 | Samme image uden ændringen (kontrol) | `Image was correctly validated` | Applikationen starter med det samme (`AITSM Simple starter`) |
+| 3 | Det oprindelige image (gendannelse) | `Image was correctly validated` | Applikationen starter og forbinder til brokeren |
+
+Ændringen i test 1 ligger i en logtekst og ville ikke få koden til at fejle.
+At applikationen ikke starter, skyldes derfor, at MCUboot afviser imaget, fordi
+hashen ikke passer. Testen viser samtidig, at NSIB verificerer MCUboots
+signatur ved hver opstart:
+
+```
+Attempting to boot slot 0.
+I: Verifying signature against key 0.
+I: Firmware signature verified.
+Booting (0x8200).
+```
+
+Sådan gentages testen fra `Simple/` med et build, der ikke er det, der kører
+på boardet. nrfutil springer uploaden over, hvis imagets hash svarer til det
+kørende image, også selvom indholdet er ændret:
+
+```bash
+mkdir -p /tmp/boottest && cd /tmp/boottest
+unzip -o <build>/dfu_application.zip
+python3 -c "d=bytearray(open('app.signed.bin','rb').read()); o=d.find(b'AITSM Simple starter'); d[o]=ord('B'); open('app.signed.bin','wb').write(d)"
+python3 $ZEPHYR_BASE/../bootloader/mcuboot/scripts/imgtool.py verify \
+  -k $ZEPHYR_BASE/../bootloader/mcuboot/root-ec-p256.pem app.signed.bin
+zip -q tampered.zip app.signed.bin manifest.json
+nrfutil device program --firmware tampered.zip --serial-number <id> \
+  --traits mcuBoot --family nrf91 \
+  --options target=nRF91,mcu_end_state=NRFDL_MCU_STATE_APPLICATION
+```
+
+Bagefter flashes det rigtige image igen som beskrevet i
+[Original/README.md](../Original/README.md#flash-til-thingy91-x).
+
+**Afgrænsning:** MCUboot på boardet accepterer images, der er signeret med NCS'
+offentlige standardnøgle `bootloader/mcuboot/root-ec-p256.pem`. Det er vist
+ved, at vores images starter. Verifikationen opdager ødelagt eller ændret
+firmware, men beskytter ikke mod en angriber, der selv signerer firmware med
+samme nøgle. NSIB's nøgle er sat fra fabrikken, og vi har ikke verificeret,
+hvilken nøgle det er. RE(1) kræver egne nøgler (#70).
 
 ## Hvad et højere SL ville kræve
 
@@ -236,11 +290,11 @@ vores SL-T.
 
 | Krav | Fra | Hvad der mangler | Issue |
 | --- | --- | --- | --- |
-| EDR 3.14 RE(1) Authenticity of the boot process | SL 2 | Egne signeringsnøgler til NSIB og MCUboot | #70 |
+| EDR 3.14 RE(1) Authenticity of the boot process | SL 2 | Egne signeringsnøgler til NSIB og MCUboot. Bootloaderne fra fabrikken skal da udskiftes, hvilket kræver en debugger | #70 |
 | EDR 3.10 RE(1) Update authenticity and integrity | SL 2 | Samme: opdateringer er kun signeret med standardnøglen | #70 |
 | EDR 3.12 Provisioning product supplier roots of trust | SL 2 | Egen root of trust skrevet til enheden | #70 |
 | EDR 2.13 Use of physical diagnostic and test interfaces | SL 2 | Firmwaren låser ikke debug-porten selv (`CONFIG_NRF_APPROTECT_USE_UICR=y`, ikke `..._LOCK`). Tilstanden afhænger af UICR og er ikke verificeret på boardet | – |
-| CR 1.2 RE(1) Unique identification and authentication | SL 3 | Unik identitet pr. enhed, fx mTLS med en nøgle genereret i modemmet | #71 |
+| CR 1.2 RE(1) Unique identification and authentication | SL 3 | Unik identitet pr. enhed. En mulig løsning er mTLS med en nøgle genereret i modemmet | #71 |
 
 ## Minimum for det valgte SL-T
 
@@ -251,7 +305,7 @@ vores SL-T.
 | CR 3.1 | RE(1) (conduit SL 2) | ✔ TLS på 8883, certifikat og hostnavn verificeres, PUBACK før sletning | `Simple/app/prj.conf`, `mqtt_client.c`, `main.c` |
 | CR 3.7 | grundkrav | ✔ backoff, PUBACK-timeout, intet overskrives | `Simple/app/src/main.c`, `cloud/mqtt/ingest.py` |
 | CR 4.1 | grundkrav | delvist: TLS i transit; password og database ukrypteret at rest | `Simple/app/CMakeLists.txt`, `cloud/docker/compose.yml` |
-| EDR 3.14 | grundkrav | ✔ NSIB og MCUboot verificerer opstarten | Buildets `zephyr/.config` (sysbuild) |
+| EDR 3.14 | grundkrav | ✔ NSIB og MCUboot verificerer opstarten; testet på boardet | Nordics standard-bootkæde (`nrf/boards/nordic/thingy91x/Kconfig.sysbuild`) |
 
 ## CRA Annex I
 
@@ -286,12 +340,13 @@ vores SL-T.
 - **Rapportering:** Ugyldige payloads afvises af ingest og logges
   (`Rejected MQTT telemetry …`). Manglende PUBACK logges på enheden.
   SparkplugB's `seq` logges af ingest, så huller kan ses.
-- **Programmer:** Firmwaren bygges med NCS' sysbuild og MCUboot, som
-  verificerer signaturen på applikationen ved opstart.
+- **Programmer:** MCUboot verificerer applikationen ved hver opstart og afviser
+  et image, der er ændret (testet på boardet, se EDR 3.14).
 
 **Status:** Delvist. MCUboot bruger NCS' standard-signeringsnøgle
-(`bootloader/mcuboot/root-ec-p256.pem`), som er offentlig, så verifikationen beskytter ikke mod en angriber, der selv bygger
-firmware. Egen nøgle følges i #70.
+(`bootloader/mcuboot/root-ec-p256.pem`), som er offentlig, så verifikationen
+beskytter ikke mod en angriber, der selv bygger firmware. Egen nøgle følges i
+#70.
 
 ### 1.h – Begræns angrebsfladen
 
@@ -375,11 +430,11 @@ versioner frem for en SPDX-fil.
 | Punkt | Status | Begrundelse |
 |---|---|---|
 | CR 1.2 – Device identification and authentication | Opfyldt (SL-C 2) | MQTT-login, ingen anonyme, ACL; delt password og fast klient-id |
-| CR 2.8 – Auditable events | Opfyldt | Logging på enhed, broker, ingest og VPS; ingen persistent log på enheden |
+| CR 2.8 – Auditable events | Grundkrav adresseret | Logging på enhed, broker, ingest og VPS; ingen persistent log på enheden |
 | CR 3.1 – Communication integrity | Opfyldt (SL-C 2, RE(1)) | TLS med verificeret servercertifikat og hostnavn; PUBACK før sletning |
-| CR 3.7 – Error handling | Opfyldt | Faste fejlkoder uden credentials; backoff, PUBACK-timeout, intet overskrives |
+| CR 3.7 – Error handling | Grundkrav adresseret | Faste fejlkoder uden credentials; backoff, PUBACK-timeout, intet overskrives |
 | CR 4.1 – Information confidentiality | Delvist | TLS i transit; password i flash og database ukrypteret at rest |
-| EDR 3.14 – Integrity of the boot process | Opfyldt (SL-C 1) | NSIB og MCUboot verificerer opstarten; standardnøgler, så ikke RE(1) (#70) |
+| EDR 3.14 – Integrity of the boot process | Opfyldt (SL-C 1) | MCUboot afviser et ændret image (testet på boardet); standardnøgler, så ikke RE(1) (#70) |
 | CRA 1.c – Fortrolighed | Opfyldt i transit, delvist at rest | TLS; password og database er ikke krypteret at rest |
 | CRA 1.d – Integritet | Delvist | TLS, ACL, ingen indgående kommandoer; MCUboot med standardnøgle (#70) |
 | CRA 1.h – Angrebsflade | Opfyldt | Kun udgående forbindelse fra enheden; firewall åbner kun 22, 80, 443 og 8883 |
