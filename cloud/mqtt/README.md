@@ -5,9 +5,10 @@
 fra topicet bliver `device_id`; hver måling (metric-timestamp) bliver én række.
 NBIRTH kvitteres uden at gemme noget. Protobuf-payloaden afkodes af en lille
 indbygget afkoder i `ingest.py`, så servicen ikke kræver ekstra pakker.
-Subscriptions er `spBv1.0/+/NBIRTH/+` og `spBv1.0/+/NDATA/+`. Det gamle
-JSON-topic `aitsm/+/telemetry` læses stadig, indtil alle enheder kører den nye
-firmware. Credentials
+Subscriptions er `spBv1.0/+/NBIRTH/+` og `spBv1.0/+/NDATA/+`. Ingest abonnerer
+også stadig på det gamle JSON-topic `aitsm/+/telemetry`, fordi
+integrationstestene bruger JSON-vejen, men ingen enhed må længere skrive dertil
+(#107, se [ACL](#mosquitto-per_listener_settings-false)). Credentials
 kommer fra servicens miljø; de må ikke gemmes i repository'et.
 
 ## Deduplikering (#78)

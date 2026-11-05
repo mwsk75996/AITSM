@@ -114,14 +114,14 @@ tilstand.
 | K6 | Cellulær forbindelse via udleveret SIM (`nrf_modem`/`lte_lc`) | `network.c` | Serial log: LTE registreret |
 | K7 | TLS | `mqtt_client.c`, `app/certs/` | Forbindelse til broker på port 8883 |
 | K8 | MQTT til egen cloud | `mqtt_client.c` | Integrationstest: rækker i QuestDB |
-| K9 | SparkplugB v1.0 (NBIRTH + NDATA) | `sparkplug.c`, `proto/` | Unit test `tests/sparkplug`; ingest afkoder payloaden |
+| K9 | SparkplugB v1.0 (NBIRTH + NDATA) | `sparkplug.c`, `proto/` | Unit test `tests/sparkplug`; ingest afkoder payloaden. Se [`docs/sparkplug.md`](../docs/sparkplug.md) |
 | K10 | Data: device-id, timestamp og aflæste værdier | `sensor.c`, `sparkplug.c` | Unit test `tests/sparkplug`; QuestDB-rækker |
 | K11 | Fast måleinterval på 5-15 s | `app/Kconfig`, måletråd | Integrationstest: interval mellem rækker er 15 s |
 | K12 | Lavt dataforbrug via batching | `batch.c`, `app/Kconfig` | Unit test `tests/batch` |
 | K13 | Lavt strømforbrug via sleep modes | `network.c` (PSM), måletråd (`k_sleep`) | Serial log: PSM tildelt; strømmåling med PPK2 (#99) |
 | K14 | Egen cloud server til dataopsamling | Fælles [`cloud/`](../cloud/) | Integrationstest: Thingy → broker → QuestDB |
-| K15 | Redegørelse for CRA og/eller IEC 62443 | Fælles [`docs/standarder-iec62443-cra.md`](../docs/standarder-iec62443-cra.md) | Dokumentation |
-| K16 | Modbus RTU/TCP-dataopsamling | `modbus.c` (MQTT-besked fra Thingy'en); Modbus RTU-master på ESP32 (#93) | Fastlægges i #93 |
+| K15 | Redegørelse for CRA og/eller IEC 62443 | Fælles [`docs/standarder-iec62443-cra.md`](../docs/standarder-iec62443-cra.md), [`docs/mindste-privilegier.md`](../docs/mindste-privilegier.md) og [SBOM](../docs/sbom/README.md) | Dokumentation; boardtest af secure boot (EDR 3.14) |
+| K16 | Modbus RTU/TCP-dataopsamling | Ikke implementeret endnu. Planen er en Modbus RTU-master på ESP32 (#93) | Fastlægges i #93 |
 
 ### Tests
 
