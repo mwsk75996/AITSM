@@ -65,6 +65,8 @@ nrfutil device program --firmware build/thingy91x_at_shell/dfu_application.zip \
 
 Ingest-servicen genstartes automatisk sammen med Mosquitto (`Requires=mosquitto.service`).
 
+> **Rettelse:** Det viste sig senere at være forkert. Med `Requires=` stoppede ingest sammen med Mosquitto, men startede ikke igen (#101). Efter flytningen til Docker bliver ingest kørende og forbinder selv igen; se [`cloud/docker/README.md`](../cloud/docker/README.md#genstart-af-brokeren-101).
+
 ### 4. Ingest-nedbrud
 
 `projekt-c-ingest` stoppet 10:51:57–10:57:59. Enheden sendte en batch med 20 målinger 10:56:15. Mosquitto bekræftede den, og enheden fjernede målingerne fra bufferen. **Ingen af de 20 målinger nåede QuestDB**, heller ikke efter ingest startede igen. Ingest bruger ikke en vedvarende MQTT-session, så brokeren gemmer ikke beskeder til den (#81).

@@ -17,6 +17,7 @@ Denne mappe indeholder projektdokumentation, kravspecifikationer og tekniske ref
 - [SparkplugB v1.0: opbygning og hvad det forbedrer](sparkplug.md)
 - [Mindste privilegier (#107)](mindste-privilegier.md)
 - [Test og validering (issue #12)](test-validering.md)
+- [Dataforbrug pr. profil](dataforbrug.md)
 - [MQTT-netværkskø (issue #75)](mqtt-netvaerksko.md)
 - [MQTT-reconnect (issue #76)](mqtt-reconnect.md)
 
@@ -24,6 +25,7 @@ Denne mappe indeholder projektdokumentation, kravspecifikationer og tekniske ref
 - [Mosquitto og QuestDB i Docker på VPS'en](../cloud/docker/README.md)
 
 - [Målinger under MQTT-udfald (issue #77)](maalinger-under-udfald.md)
+- [PUBACK-genforsøg og completion-korrelation (#87)](puback-genforsoeg.md)
 
 ## Referencefiler
 
@@ -42,5 +44,3 @@ Denne mappe indeholder projektdokumentation, kravspecifikationer og tekniske ref
 - [Zephyr Getting Started Guide](https://docs.zephyrproject.org/latest/develop/getting_started/index.html)
 
 PDF’erne bruges som projektkontekst og tekniske referencepunkter. De ændrer ikke brugerens konkrete instruktioner.
-
-- [PUBACK-genforsøg og completion-korrelation (#87)](puback-genforsoeg.md)
