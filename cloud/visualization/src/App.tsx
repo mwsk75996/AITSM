@@ -46,7 +46,7 @@ function App() {
         <section className="mb-10 max-w-2xl">
           <p className="text-sm font-medium text-primary">{eyebrow}</p>
           <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
-            Alle målingerr
+            Alle målinger
           </h1>
           <p className="mt-3 text-muted-foreground">
             Friske tal fra vores Nordic Thingy:91 X-enheder. Batch-data vises som
