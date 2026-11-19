@@ -222,6 +222,8 @@ NDATA_SINGLE_HEX = (
 )
 NDATA_TOPIC = "spBv1.0/aitsm/NDATA/thingy91x"
 NBIRTH_TOPIC = "spBv1.0/aitsm/NBIRTH/thingy91x"
+DDATA_TOPIC = "spBv1.0/aitsm/DDATA/esp32-gateway/esp32-modbus"
+DBIRTH_TOPIC = "spBv1.0/aitsm/DBIRTH/esp32-gateway/esp32-modbus"
 FIRST_LINE = "sensor_readings,device_id=thingy91x temperature=28.45,battery=97.4 1700000000000000000\n"
 SECOND_LINE = "sensor_readings,device_id=thingy91x temperature=-1.25,battery=97.38 1700000015000000000\n"
 
@@ -236,6 +238,20 @@ class TestSparkplug:
 
     def test_nbirth_stores_nothing(self):
         assert ingest.build_sparkplug_lines(NBIRTH_TOPIC, bytes.fromhex(NBIRTH_HEX)) == []
+
+    def test_ddata_uses_device_id_from_topic(self):
+        lines = ingest.build_sparkplug_lines(DDATA_TOPIC, bytes.fromhex(NDATA_SINGLE_HEX))
+        assert lines == [FIRST_LINE.replace("device_id=thingy91x", "device_id=esp32-modbus")]
+
+    def test_millisecond_timestamp_is_exact(self):
+        assert ingest.timestamp_ns(1795080697033) == 1795080697033000000
+
+    def test_dbirth_stores_nothing(self):
+        assert ingest.build_sparkplug_lines(DBIRTH_TOPIC, bytes.fromhex(NBIRTH_HEX)) == []
+
+    def test_device_message_without_device_id_is_rejected(self):
+        with pytest.raises(ValueError):
+            ingest.build_sparkplug_lines("spBv1.0/aitsm/DDATA/esp32-gateway", bytes.fromhex(NDATA_SINGLE_HEX))
 
     def test_decoded_ndata_fields(self):
         seq, timestamp, metrics = ingest.decode_sparkplug_payload(bytes.fromhex(NDATA_BATCH_HEX))

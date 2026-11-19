@@ -4,16 +4,43 @@ Sideprojekt for at lære Modbus. Det er **ikke en del af afleveringen** og har
 intet med Thingy-firmwaren at gøre (se [`README.md`](../../README.md#teknologistak)).
 
 ```
-DS18B20 ──1-Wire, GPIO 4──▶ ESP32 slave ──Modbus TCP──▶ ESP32 master ──WiFi──▶ telefonens hotspot
-                            192.168.4.10   (WiFi "aitsm-modbus")  192.168.4.1        (senere: VPS)
+DS18B20 ──1-Wire──▶ ESP32 slave ──Modbus TCP──▶ ESP32 master ──hotspot, MQTT/TLS + SparkplugB──▶ VPS
+            GPIO 4  192.168.4.10  WiFi "aitsm-modbus"  192.168.4.1
+                    Device: esp32-modbus               Edge Node: esp32-gateway
 ```
 
 - **Slaven** (Modbus-server) måler temperaturen hvert 5. sekund og lægger den i
   input-registre.
-- **Masteren** (Modbus-client) læser registrene hvert 5. sekund. Den er
-  forbundet til telefonens hotspot og laver samtidig sit eget WiFi,
-  `aitsm-modbus`, som slaven forbinder til. Afsendelse til VPS'en kommer
-  senere.
+- **Masteren** (Modbus-client) læser registrene hvert 5. sekund og gemmer
+  målingerne med tid fra NTP. Den er forbundet til telefonens hotspot og laver
+  samtidig sit eget WiFi, `aitsm-modbus`, som slaven forbinder til.
+- **Til VPS'en** sender masteren målingerne som SparkplugB over MQTT/TLS (port
+  8883). Den abonnerer på Thingy'ens NDATA og sender sin egen batch lige efter,
+  så de to enheders batches kommer ind sammen.
+
+## SparkplugB
+
+| Rolle | Id | Beskeder |
+| --- | --- | --- |
+| Edge Node (master) | `esp32-gateway` | `NBIRTH` ved hver forbindelse, `NDEATH` som last will |
+| Device (slave) | `esp32-modbus` | `DBIRTH` ved hver forbindelse, `DDATA` med målinger |
+
+- `NDEATH` har samme `bdSeq` som NBIRTH. Brokeren sender den, hvis
+  forbindelsen ryger uden disconnect, og en ny forbindelse får næste `bdSeq`.
+- `DDATA` har én `temperature`-metric (Float, °C) pr. måling med målingens
+  eget tidsstempel, markeret `is_historical`. Højst 60 målinger pr. besked.
+- **Hvornår der sendes:** når en NDATA fra `thingy91x` er set, sendes hele
+  bufferen. Kommer der ingen batch fra Thingy'en, sendes alligevel, når
+  bufferen er tre fjerdedele fuld (90 målinger, 7,5 minut). Bufferen rummer
+  120 målinger (10 minutter); er den fuld, springes nye målinger over og tælles.
+- Målingerne fjernes først fra bufferen, når brokeren har kvitteret med PUBACK.
+  Uden PUBACK inden 30 s sendes de igen; QuestDB fjerner eventuelle dubletter.
+- Ingest gemmer DDATA med device-id'et, så målingerne står som `esp32-modbus`
+  i QuestDB og på websitet, hvor de har deres eget gennemsnit.
+
+MQTT-brugeren `esp32_gateway` må kun skrive til de fire emner ovenfor og læse
+Thingy'ens NDATA (se [`cloud/mqtt/README.md`](../../cloud/mqtt/README.md)).
+Brokerens certifikat kontrolleres mod ESP32's indbyggede CA-bundt.
 
 ## Hvorfor masteren laver sit eget WiFi
 
@@ -61,32 +88,38 @@ Tælleren viser masteren, at værdien er ny og ikke en gammel måling.
 | --- | --- |
 | `platformio.ini` | Ét projekt med to miljøer: `slave` og `master` |
 | `include/modbus_map.h` | Netværk, port, unit id og registeradresser |
-| `include/wifi_credentials.h.example` | Skabelon til WiFi-navne og -koder |
+| `include/credentials.h.example` | Skabelon til WiFi- og MQTT-koder |
+| `proto/sparkplug_b.proto` | SparkplugB-delmængde; nanopb genererer koden ved build |
 | `src/common/wifi_connect.cpp/.h` | Forbind som station og start access point |
 | `src/slave/main.cpp` | Måleløkke og Modbus-server (eModbus) |
 | `src/slave/temperature_sensor.cpp/.h` | DS18B20 uden blokering under målingen |
-| `src/master/main.cpp` | WiFi, access point og Modbus-client (eModbus) |
+| `src/master/main.cpp` | Modbus-client, SparkplugB-session og hvornår der sendes |
+| `src/master/reading_buffer.cpp/.h` | Buffer til målinger, til de er kvitteret |
+| `src/master/sparkplug.cpp/.h` | Topics og protobuf-payloads (NBIRTH, NDEATH, DBIRTH, DDATA) |
+| `src/master/mqtt_link.cpp/.h` | MQTT/TLS med ESP-IDF's esp-mqtt og last will |
 
-eModbus svarer på forespørgsler i sin egen FreeRTOS-task. Slavens registre
-deles derfor mellem den task og `loop()` og er beskyttet med en spinlock.
+eModbus og esp-mqtt kører i hver deres FreeRTOS-task. Slavens registre og
+masterens buffer deles derfor med `loop()` og er beskyttet med en spinlock, og
+MQTT-hændelser når `loop()` gennem en FreeRTOS-kø.
 
 ## Build og flash
 
 Kræver [PlatformIO](https://platformio.org/). Kopiér først skabelonen og udfyld
-hotspottets navn og kode og en kode til `aitsm-modbus` (mindst 8 tegn).
-`wifi_credentials.h` er i `.gitignore`.
+hotspottets navn og kode, en kode til `aitsm-modbus` (mindst 8 tegn) og
+MQTT-passwordet til `esp32_gateway`. `credentials.h` er i `.gitignore`.
 
 ```bash
 cd Simple/modbus
-cp include/wifi_credentials.h.example include/wifi_credentials.h
+cp include/credentials.h.example include/credentials.h
 pio run                                                   # bygger begge
-pio run -e master -t upload --upload-port /dev/ttyUSB1
-pio run -e slave -t upload --upload-port /dev/ttyUSB0
-pio device monitor -p /dev/ttyUSB1                        # masterens log
+pio run -e master -t upload --upload-port /dev/ttyUSB0
+pio run -e slave -t upload --upload-port /dev/ttyUSB1
+pio device monitor -p /dev/ttyUSB0                        # masterens log
 ```
 
-Portene afhænger af, hvilken USB-port boardet sidder i. Slaven er den, der
-skriver `DS18B20 fundet` ved opstart.
+Portnumrene kan bytte plads, når boardene sættes i igen. Find boardet med
+`esptool.py --port /dev/ttyUSB0 read_mac`, eller se efter `DS18B20 fundet` i
+slavens log.
 
 ## Verifikation
 
@@ -104,9 +137,20 @@ Kørt 2026-11-19 med begge boards på samme bord:
 23 af 23 forespørgsler over 2 minutter lykkedes uden fejl. Med begge boards på
 telefonens hotspot lykkedes de første 9, hvorefter alle gav timeout.
 
+SparkplugB til VPS'en, samme dag med Thingy'en kørende:
+
+```
+10:26:27 [master] MQTT forbundet; NBIRTH og DBIRTH sendt (bdSeq 0)
+10:31:36 [master] Batch fra Thingy:91 X set; sender egne målinger
+10:31:36 [master] DDATA sendt: 60 målinger, 1869 bytes, seq 3
+10:31:37 [master] DDATA bekræftet; 60 målinger fjernet fra bufferen
+```
+
+En DDATA blev fanget på brokeren med `cloud_ingest`s læseadgang og kørt
+gennem ingest: 60 rækker med `device_id=esp32-modbus` og ét tidsstempel pr.
+måling.
+
 ## Videre arbejde
 
-- Masteren sender temperaturen til VPS'en som SparkplugB over MQTT/TLS. Masteren
-  bliver Edge Node og slaven Device (`spBv1.0/aitsm/DDATA/<edge node>/<device>`),
-  se [`docs/sparkplug.md`](../../docs/sparkplug.md).
-- Egen MQTT-bruger og ACL til masteren på VPS'en.
+- `DDEATH`, når slaven ikke svarer på Modbus, og `DBIRTH`, når den kommer igen.
+- Kommandoer fra skyen (NCMD/DCMD), fx at ændre måleintervallet.

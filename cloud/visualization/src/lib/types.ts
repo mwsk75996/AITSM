@@ -8,6 +8,10 @@ export type Reading = {
 export type ReadingsSummary = {
   avg_temperature: number | null
   min_battery: number | null
+  /** Thingy:91 X-enheder (device_id thingy…) */
+  avg_temperature_thingy: number | null
+  /** ESP32 Modbus-enheder (device_id esp32…) */
+  avg_temperature_modbus: number | null
 }
 
 export type ReadingsFilters = {

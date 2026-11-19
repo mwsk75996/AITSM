@@ -21,11 +21,15 @@ MQTT_HOST = os.getenv("MQTT_HOST", "127.0.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_USER = os.environ["MQTT_INGEST_USER"]
 MQTT_PASSWORD = os.environ["MQTT_INGEST_PASSWORD"]
-# Sparkplug B v1.0: spBv1.0/<group_id>/<message_type>/<edge_node_id>. The JSON
-# topic is kept until every device runs the Sparkplug B firmware.
+# Sparkplug B v1.0: spBv1.0/<group_id>/<message_type>/<edge_node_id>[/<device_id>].
+# Node messages come from the Thingy; device messages from the ESP32 Modbus
+# gateway (#93). The JSON topic is kept for the integration tests.
 MQTT_TOPICS = [
     topic.strip()
-    for topic in os.getenv("MQTT_TOPICS", "spBv1.0/+/NBIRTH/+,spBv1.0/+/NDATA/+,aitsm/+/telemetry").split(",")
+    for topic in os.getenv(
+        "MQTT_TOPICS",
+        "spBv1.0/+/NBIRTH/+,spBv1.0/+/NDATA/+,spBv1.0/+/DBIRTH/+/+,spBv1.0/+/DDATA/+/+,aitsm/+/telemetry",
+    ).split(",")
 ]
 SPARKPLUG_NAMESPACE = "spBv1.0"
 MQTT_CLIENT_ID = "projekt-c-questdb-ingest"
@@ -52,6 +56,10 @@ def parse_timestamp(value):
 
 
 def timestamp_ns(value):
+    # Integer Unix time is converted exactly; via a float, milliseconds such as
+    # 1795080697033 would come out as ...032999936 ns.
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value * 1_000_000 if value > 10_000_000_000 else value * 1_000_000_000
     return int(parse_timestamp(value).timestamp() * 1_000_000_000)
 
 
@@ -194,16 +202,26 @@ def decode_sparkplug_payload(data):
 
 
 def build_sparkplug_lines(topic, data):
-    """Build QuestDB lines for a Sparkplug B NDATA message; NBIRTH only logs."""
+    """Build QuestDB lines for Sparkplug B NDATA/DDATA; NBIRTH and DBIRTH only log.
+
+    The edge node id becomes device_id for node messages (the Thingy). For
+    device messages the device id is used, since the device made the reading.
+    """
 
     parts = topic.split("/")
     if len(parts) < 4 or parts[0] != SPARKPLUG_NAMESPACE:
         raise ValueError("ugyldigt Sparkplug B-topic")
-    message_type, edge_node_id = parts[2], parts[3]
+    message_type = parts[2]
+    if message_type.startswith("D"):
+        if len(parts) != 5 or not parts[4]:
+            raise ValueError("Sparkplug B-device-besked uden device_id")
+        device_id = parts[4]
+    else:
+        device_id = parts[3]
     seq, payload_timestamp, metrics = decode_sparkplug_payload(data)
 
-    if message_type == "NBIRTH":
-        logging.info("Sparkplug B NBIRTH from %s with %d metric(s)", edge_node_id, len(metrics))
+    if message_type in ("NBIRTH", "DBIRTH"):
+        logging.info("Sparkplug B %s from %s with %d metric(s)", message_type, "/".join(parts[3:]), len(metrics))
         return []
     if message_type not in ("NDATA", "DDATA"):
         raise ValueError(f"Sparkplug B-beskedtype {message_type} understøttes ikke")
@@ -220,9 +238,9 @@ def build_sparkplug_lines(topic, data):
     if not readings:
         raise ValueError("ingen kendte numeriske sensorværdier")
 
-    logging.info("Sparkplug B %s from %s seq=%s with %d reading(s)", message_type, edge_node_id, seq, len(readings))
+    logging.info("Sparkplug B %s from %s seq=%s with %d reading(s)", message_type, "/".join(parts[3:]), seq, len(readings))
     return [
-        build_line({"device_id": edge_node_id, "timestamp": timestamp, **values}, topic)
+        build_line({"device_id": device_id, "timestamp": timestamp, **values}, topic)
         for timestamp, values in sorted(readings.items())
     ]
 

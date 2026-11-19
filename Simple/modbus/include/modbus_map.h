@@ -5,7 +5,7 @@
 /* Shared between slave and master, so both agree on network, addresses and units. */
 
 /*
- * The master runs its own access point (MODBUS_AP_SSID in wifi_credentials.h)
+ * The master runs its own access point (MODBUS_AP_SSID in credentials.h)
  * for the Modbus network and is 192.168.4.1 on it. The slave joins with a
  * fixed address, so the master always knows where to find it.
  */

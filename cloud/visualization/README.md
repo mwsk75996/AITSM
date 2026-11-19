@@ -33,7 +33,10 @@ Uden filtre opfører endpointet sig som før (fuld historik, nyeste først).
 | `temperature_min` / `temperature_max` | Nedre/øvre grænse for temperatur |
 | `battery_min` / `battery_max` | Nedre/øvre grænse for batteri |
 
-`total` og `summary` afspejler de valgte filtre. Ugyldige værdier afvises med
+`summary` indeholder `avg_temperature`, `min_battery` og gennemsnittet pr.
+enhedstype: `avg_temperature_thingy` (`device_id` starter med `thingy`) og
+`avg_temperature_modbus` (starter med `esp32`). De vises i to separate
+KPI-kort. `total` og `summary` afspejler de valgte filtre. Ugyldige værdier afvises med
 HTTP 400 og en forklarende fejlbesked.
 
 ## Lokal udvikling

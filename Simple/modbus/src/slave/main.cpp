@@ -8,10 +8,10 @@
 #include <Arduino.h>
 #include <ModbusServerWiFi.h>
 
+#include "credentials.h"
 #include "modbus_map.h"
 #include "temperature_sensor.h"
 #include "wifi_connect.h"
-#include "wifi_credentials.h"
 
 #define SLAVE_HOSTNAME "aitsm-modbus-slave"
 

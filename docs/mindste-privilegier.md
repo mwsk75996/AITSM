@@ -13,6 +13,7 @@ Gennemgået og strammet 2026-10-29 for Simple og den fælles cloud.
 | --- | --- | --- |
 | Thingy:91 X (firmware) | Forbinde ud til 8883 og sende til egne emner | Kun én udgående TLS-forbindelse, ingen lyttende porte og ingen indgående kommandoer |
 | MQTT-bruger `thingy91x` | Skrive til egne SparkplugB-emner | Skriver kun til `spBv1.0/aitsm/NBIRTH/thingy91x` og `spBv1.0/aitsm/NDATA/thingy91x` |
+| MQTT-bruger `esp32_gateway` | Sende Modbus-gatewayens SparkplugB-beskeder og se, hvornår Thingy'en sender | Skriver kun til egne `NBIRTH`/`NDEATH`/`DBIRTH`/`DDATA`-emner og læser kun `spBv1.0/aitsm/NDATA/thingy91x` (#93) |
 | MQTT-bruger `cloud_ingest` | Læse telemetri | Kun læseadgang |
 | Mosquitto (container) | Lytte på 8883 og skrive sin session | Egen bruger, read-only filsystem, ingen capabilities, `no-new-privileges`, 64 MB og 32 processer |
 | Ingest (container) | Læse fra brokeren og skrive til QuestDB | Egen bruger, read-only filsystem, ingen capabilities, kun internt netværk, 64 MB og 32 processer |

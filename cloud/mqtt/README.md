@@ -5,7 +5,9 @@
 fra topicet bliver `device_id`; hver måling (metric-timestamp) bliver én række.
 NBIRTH kvitteres uden at gemme noget. Protobuf-payloaden afkodes af en lille
 indbygget afkoder i `ingest.py`, så servicen ikke kræver ekstra pakker.
-Subscriptions er `spBv1.0/+/NBIRTH/+` og `spBv1.0/+/NDATA/+`. Ingest abonnerer
+Subscriptions er `spBv1.0/+/NBIRTH/+`, `spBv1.0/+/NDATA/+` og device-beskederne
+`spBv1.0/+/DBIRTH/+/+` og `spBv1.0/+/DDATA/+/+`. For DDATA bliver device-id'et
+(sidste del af topicet) `device_id`. Ingest abonnerer
 også stadig på det gamle JSON-topic `aitsm/+/telemetry`, fordi
 integrationstestene bruger JSON-vejen, men ingen enhed må længere skrive dertil
 (#107, se [ACL](#mosquitto-per_listener_settings-false)). Credentials
@@ -131,8 +133,13 @@ VPS'en bruger derfor `per_listener_settings false` med `allow_anonymous`,
 værdier i den tilstand. ACL'en giver `thingy91x` skriveadgang til
 `spBv1.0/aitsm/NBIRTH/thingy91x` og `spBv1.0/aitsm/NDATA/thingy91x` og intet
 andet. Skriveadgangen til det gamle JSON-emne `aitsm/+/telemetry` er fjernet
-(#107), fordi Simple kun bruger SparkplugB. `cloud_ingest` læser
-`spBv1.0/+/NBIRTH/+`, `spBv1.0/+/NDATA/+` og `aitsm/+/telemetry`. Testbrokeren
+(#107), fordi Simple kun bruger SparkplugB. ESP32-gatewayen fra Modbus-sideprojektet
+(#93) er brugeren `esp32_gateway`. Den må skrive til
+`spBv1.0/aitsm/{NBIRTH,NDEATH}/esp32-gateway` og
+`spBv1.0/aitsm/{DBIRTH,DDATA}/esp32-gateway/esp32-modbus` og læse
+`spBv1.0/aitsm/NDATA/thingy91x`, så den kan sende lige efter Thingy'en.
+`cloud_ingest` læser `spBv1.0/+/NBIRTH/+`, `spBv1.0/+/NDATA/+`,
+`spBv1.0/+/DBIRTH/+/+`, `spBv1.0/+/DDATA/+/+` og `aitsm/+/telemetry`. Testbrokeren
 i `tests/mosquitto/` har samme tilstand. Dens anonyme testklient må stadig
 skrive til `aitsm/+/telemetry`, fordi integrationstestene bruger ingests
 JSON-vej, og udfaldstesten stopper, før ingest stoppes,
