@@ -34,7 +34,7 @@ batches.
 | Hvilestrøm | 0,73 mA | 0,69 mA |
 | Højeste spids | 365 mA | 162 mA |
 
-![Strømforbrug før og efter PSM](assets/ppk2/ppk2-foer-efter.png)
+![Strømforbrug før og efter PSM](assets/ppk2/foer-efter.png)
 
 **Det viser sammenligningen:**
 
@@ -54,7 +54,40 @@ batches.
 
 Rådata: [før, 1 s-vinduer](assets/ppk2/foer-psm-38d6250-2026-11-19.csv).
 
-## Grafer
+### Grafer før PSM
+
+Samme slags grafer som for Simple nedenfor, så de kan sammenlignes én til én.
+Detaljegraferne er fra en separat optagelse 12:07:50 til 12:13:30 UTC i
+100 µs-opløsning.
+
+**Hele målingen før.** Radioen vågner hvert minut: fire keepalives og én batch
+pr. 5 minutter.
+
+![30 minutter før PSM](assets/ppk2/foer-ppk2-30-minutter.png)
+
+**Én keepalive før.** Kun et MQTT-PINGREQ på få bytes, men radioen er forbundet
+i ca. 17 s og bruger 400 mC, lige så meget som en batch.
+
+![Én keepalive før PSM](assets/ppk2/foer-ppk2-keepalive.png)
+
+**Én batch før.** Næsten samme forløb og ladning som efter (411 mod 350 mC).
+Selve afsendelsen er ikke blevet billigere; den sker bare sjældnere end
+radioens opvågninger før.
+
+![Én batch før PSM](assets/ppk2/foer-ppk2-batch.png)
+
+**Én måling før.** Uændret: ca. 25 ms og 0,2 mC.
+
+![Én måling før PSM](assets/ppk2/foer-ppk2-maaling.png)
+
+**Hvile før.** 0,70 mA, samme niveau og samme impulser som efter. Uden PSM er
+modemmet i RRC-idle mellem keepalives, men det koster ikke målbart mere end
+PSM i de 13 s; besparelsen kommer fra, at radioen ikke skal forbinde hvert
+minut.
+
+![Hvile før PSM](assets/ppk2/foer-ppk2-hvile.png)
+
+## Grafer efter (Simple med PSM)
 
 Graferne viser PPK2-målingen som i Power Profiler: strømmen over tid og en
 markering med gennemsnit, maks, tid og ladning. Linjen er gennemsnittet, og det
@@ -64,7 +97,7 @@ lyse bånd er den højeste sample (10 µs) i samme tidsrum.
 (markeret) er stabil drift med fem batches. Mellem batches ses en lille spids
 for hver måling hvert 15. sekund.
 
-![30 minutter med batch hvert 5. minut](assets/ppk2/ppk2-30-minutter.png)
+![30 minutter med batch hvert 5. minut](assets/ppk2/efter-ppk2-30-minutter.png)
 
 **Én batch.** Modemmet vågner, forbinder til netværket, laver TLS-handshake,
 sender NDATA og venter på PUBACK. Radioen trækker 20 til 30 mA, mens den er
@@ -73,20 +106,20 @@ forbindelsen; de korte spidser bagefter er modemmets afslutning af
 forbindelsen. Markeringen omfatter hele forløbet inklusive afslutningen, derfor
 er ladningen lidt større end gennemsnittet i tabellen.
 
-![Én batch](assets/ppk2/ppk2-batch.png)
+![Én batch](assets/ppk2/efter-ppk2-batch.png)
 
 **Én måling.** CPU'en vågner, læser temperatur og batteri og lægger målingen i
 bufferen. Det tager ca. 25 ms og koster 0,2 mC; 20 målinger pr. periode er
 ca. 4 mC ud af 516 mC.
 
-![Én måling hvert 15. sekund](assets/ppk2/ppk2-maaling.png)
+![Én måling hvert 15. sekund](assets/ppk2/efter-ppk2-maaling.png)
 
 **Hvile.** Mellem målingerne ligger strømmen på 0,69 mA. Hvilestrømmen består
 af korte impulser på ca. 3 mA med få millisekunders mellemrum, ikke af et jævnt
 niveau. Det tyder på en periodisk kilde på boardet, fx PWM til LED'en eller en
 regulator; en måling med LED'en slukket kan afgøre det.
 
-![Hvile mellem to målinger](assets/ppk2/ppk2-hvile.png)
+![Hvile mellem to målinger](assets/ppk2/efter-ppk2-hvile.png)
 
 ### Fordeling pr. 5-minutters periode
 
@@ -186,8 +219,11 @@ Sammenligningen før og efter laves med `compare.py` ud fra to CSV-filer fra
 
 ```bash
 .venv/bin/python Simple/scripts/ppk2/capture.py /dev/ttyACM0 360 fine.bin
-.venv/bin/python Simple/scripts/ppk2/plot.py fine.bin <start_epoch> docs/assets/ppk2
-.venv/bin/python Simple/scripts/ppk2/plot.py maaling.csv <start_epoch> docs/assets/ppk2 <start_s> <slut_s>
+.venv/bin/python Simple/scripts/ppk2/plot.py fine.bin <start_epoch> docs/assets/ppk2 prefix=efter- "version= (med PSM)"
+.venv/bin/python Simple/scripts/ppk2/plot.py maaling.csv <start_epoch> docs/assets/ppk2 <start_s> <slut_s> prefix=efter- "version= (med PSM)"
+# Før PSM: batchen ligger efter ca. 290 s, en keepalive efter 120 s og en måling efter 165 s
+.venv/bin/python Simple/scripts/ppk2/plot.py foer.bin <start_epoch> docs/assets/ppk2 prefix=foer- "version= (før PSM)" \
+  batch_at=290 keepalive_at=120 wake_at=165 psm=0
 ```
 
 Scripts sætter PPK2'en i ampere meter, inden de tænder for VOUT, så

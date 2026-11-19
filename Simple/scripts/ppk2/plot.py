@@ -8,6 +8,15 @@ max, in uA) as written by capture.py. The script finds a batch and a
 measurement wake-up in it and draws three figures. With a 10 ms CSV from
 measure.py it draws one overview of the whole measurement, with the steady
 state between sel_start_s and sel_end_s selected.
+
+Options after the positional arguments, as key=value:
+  prefix=foer-       prefix for the file names
+  version=" (før)"   added to every title
+  batch_at=280       search for the batch from this second (default 60)
+  keepalive_at=120   also draw the radio event that starts after this second
+                     as a keepalive figure
+  wake_at=150        search for a measurement wake-up from this second
+  psm=0              the idle figure says "uden PSM" instead of "modem i PSM"
 """
 import sys
 from array import array
@@ -27,7 +36,11 @@ INK = "#1f2933"
 MUTED = "#616e7c"
 GRID = "#e4e7eb"
 
-path, start_epoch, out_dir = sys.argv[1], float(sys.argv[2]), Path(sys.argv[3])
+opts = dict(a.split("=", 1) for a in sys.argv[1:] if "=" in a)
+args = [a for a in sys.argv[1:] if "=" not in a]
+path, start_epoch, out_dir = args[0], float(args[1]), Path(args[2])
+PREFIX = opts.get("prefix", "")
+VERSION = opts.get("version", "")
 overview = path.endswith(".csv")
 if overview:
     DT = 0.01
@@ -110,7 +123,7 @@ def figure(name, title, i0, i1, sel=None, log=False, x_unit="s", band=True):
         ax.spines[side].set_color(GRID)
     ax.tick_params(colors=MUTED)
 
-    fig.text(0.07, 0.93, title, fontsize=14, fontweight="bold", color=INK)
+    fig.text(0.07, 0.93, title + VERSION, fontsize=14, fontweight="bold", color=INK)
     label = "Markering" if sel != (i0, i1) else "Hele vinduet"
     stats = [("Gennemsnit", fmt_current(s_mean)), ("Maks", fmt_current(s_max)),
              ("Tid", fmt_time(s_time)), ("Ladning", f"{s_charge:.1f} mC")]
@@ -123,15 +136,15 @@ def figure(name, title, i0, i1, sel=None, log=False, x_unit="s", band=True):
     legend = f"Linje: gennemsnit pr. {res}" + (" · bånd: højeste sample" if band else "") + " (PPK2, 100 kHz)"
     fig.text(0.98, 0.02, legend,
              fontsize=8, color=MUTED, ha="right")
-    fig.savefig(out_dir / name)
+    fig.savefig(out_dir / (PREFIX + name))
     plt.close(fig)
     print(f"{name}: {label} {fmt_current(s_mean)} maks {fmt_current(s_max)} {fmt_time(s_time)} {s_charge:.1f} mC")
 
 
 if overview:
     out_dir.mkdir(parents=True, exist_ok=True)
-    a, b = int(float(sys.argv[4]) / DT), int(float(sys.argv[5]) / DT)
-    figure("ppk2-30-minutter.png", "30 minutter med batch hvert 5. minut (markeret: stabil drift)",
+    a, b = int(float(args[3]) / DT), int(float(args[4]) / DT)
+    figure("ppk2-30-minutter.png", "30 minutter, batch hvert 5. minut, stabil drift markeret",
            0, n, sel=(a, b), log=True, x_unit="min", band=False)
     sys.exit(0)
 
@@ -139,20 +152,28 @@ if overview:
 # start-up is not part of normal operation.
 SKIP = int(60 / DT)
 
-# Find the batch: the first run of 10 ms windows above 20 mA after the start-up.
 win = 100
-batch_start = batch_end = None
-for i in range(SKIP, n - win, win):
-    if sum(mean[i:i + win]) / win > 20_000:
-        if batch_start is None:
-            batch_start = i
-        batch_end = i
-    elif batch_start is not None and (i - batch_end) * DT > 3:
-        break
+
+
+def radio_event(start):
+    """First run of 10 ms windows above 20 mA from start; returns (begin, end)."""
+    begin = end = None
+    for i in range(start, n - win, win):
+        if sum(mean[i:i + win]) / win > 20_000:
+            if begin is None:
+                begin = i
+            end = i
+        elif begin is not None and (i - end) * DT > 3:
+            break
+    return begin, end
+
+
+# Find the batch: the first radio event after the start-up (or after batch_at).
+batch_start, batch_end = radio_event(int(float(opts.get("batch_at", 60)) / DT))
 
 # A measurement wake-up: the first 10 ms window above 3 mA after the start-up.
 wake = None
-for i in range(SKIP, batch_start - int(20 / DT), win):
+for i in range(int(float(opts.get("wake_at", 60)) / DT), batch_start - int(20 / DT), win):
     if sum(mean[i:i + win]) / win > 3000:
         wake = i
         break
@@ -166,5 +187,11 @@ figure("ppk2-batch.png", "Batch: netværk, TLS, MQTT-afsendelse og PUBACK",
 w0 = next(i for i in range(wake - int(0.05 / DT), n) if mean[i] > 8000) - int(0.005 / DT)
 figure("ppk2-maaling.png", "Måling hvert 15. sekund: sensoraflæsning mellem batches",
        w0 - int(0.1 / DT), w0 + int(0.15 / DT), sel=(w0, w0 + int(0.03 / DT)), x_unit="ms")
-figure("ppk2-hvile.png", "Hvile mellem to målinger (modem i PSM)",
+if "keepalive_at" in opts:
+    k_start, k_end = radio_event(int(float(opts["keepalive_at"]) / DT))
+    k0, k1 = k_start - int(2 / DT), k_end + int(3 / DT)
+    figure("ppk2-keepalive.png", "MQTT-keepalive: forbindelse til nettet for et PINGREQ",
+           k0 - int(3 / DT), k1 + int(10 / DT), sel=(k0, k1))
+idle = "modem i PSM" if opts.get("psm", "1") != "0" else "uden PSM"
+figure("ppk2-hvile.png", f"Hvile mellem to målinger ({idle})",
        wake + int(1 / DT), wake + int(14 / DT))
