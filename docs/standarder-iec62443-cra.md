@@ -20,9 +20,10 @@ Kilder:
   den fælles cloud i [`cloud/`](../cloud/). **Original er uden for scope.**
 - Vurderingen dækker de seks udvalgte krav. Den er ikke et samlet opnået
   Security Level og ikke en certificering.
-- Modbus (#93) er ikke med endnu. Når løsningen er afklaret, vurderes bl.a.
-  CR 5.1 (netværkssegmentering) og CR 2.1 (autorisation), fordi Modbus hverken
-  har login eller kryptering.
+- Modbus (#93) er uden for scope. Det er et sideprojekt på to ESP32'er og ikke
+  en del af afleveringen. Skulle det indgå, er CR 5.1 (netværkssegmentering) og
+  CR 2.1 (autorisation) de vigtigste krav, fordi Modbus TCP hverken har login
+  eller kryptering.
 
 ## Systemkomponenter og zoner
 

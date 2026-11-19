@@ -17,7 +17,11 @@ Løsningen skal indsamle data fra Thingy:91 X og sende dem sikkert til en cloud-
 - **Cloud:** MQTT-broker og tidsseriedatabase, eventuelt med dashboard
 - **Data:** `device-id`, `timestamp` og aflæste værdier
 
-Modbus RTU/TCP-dataopsamling skal også indgå i Projekt C og følges i #93.
+Modbus er ikke en del af afleveringen. Skolens ledelse har bedt os holde os til
+kravspecifikationen, og for Projekt C sker dataopsamlingen "gennem vilkårlig
+metode". Modbus laves i stedet som et sideprojekt for at lære protokollen: to
+ESP32'er taler Modbus TCP over WiFi, og masteren sender slavens temperatur til
+VPS'en som SparkplugB over MQTT/TLS (#93).
 
 ## Versioner
 
