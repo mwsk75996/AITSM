@@ -11,12 +11,44 @@ Profiler Kit II (PPK2) og supplerer [dataforbrug.md](dataforbrug.md) (#32).
 | **Middelstrøm, stabil drift** | **1,72 mA** (25 min, 5 hele batchperioder) |
 | Batteritid med 1350 mAh | ca. 785 timer = **33 døgn** (teoretisk, se forbehold) |
 | Hvilestrøm mellem batches | 0,69 mA (median), laveste 1 % 0,58 mA |
-| Måling hvert 15. sekund | ca. 150 ms med spids omkring 7,5 mA |
+| Måling hvert 15. sekund | ca. 25 ms, 5,4 mA i gns., 0,2 mC |
 | Batch (forbindelse, TLS, MQTT, PUBACK) | 14,4 s over 20 mA, 298 mC, spids 162 mA |
 | Højeste spids i hele målingen | 170 mA (opstart, 10 µs-sample) |
 | Opstart fra slukket til første batch | 23 s, 507 mC |
 
-![Strømforløb over 30 minutter og én batch i detaljer](assets/ppk2/simple-batch5-2026-11-19.png)
+## Grafer
+
+Graferne viser PPK2-målingen som i Power Profiler: strømmen over tid og en
+markering med gennemsnit, maks, tid og ladning. Linjen er gennemsnittet, og det
+lyse bånd er den højeste sample (10 µs) i samme tidsrum.
+
+**Hele målingen.** De første 5 minutter er opstarten; de næste 25 minutter
+(markeret) er stabil drift med fem batches. Mellem batches ses en lille spids
+for hver måling hvert 15. sekund.
+
+![30 minutter med batch hvert 5. minut](assets/ppk2/ppk2-30-minutter.png)
+
+**Én batch.** Modemmet vågner, forbinder til netværket, laver TLS-handshake,
+sender NDATA og venter på PUBACK. Radioen trækker 20 til 30 mA, mens den er
+forbundet, med spidser op til 180 mA under afsendelsen. Efter ca. 16 s frigives
+forbindelsen; de korte spidser bagefter er modemmets afslutning af
+forbindelsen. Markeringen omfatter hele forløbet inklusive afslutningen, derfor
+er ladningen lidt større end gennemsnittet i tabellen.
+
+![Én batch](assets/ppk2/ppk2-batch.png)
+
+**Én måling.** CPU'en vågner, læser temperatur og batteri og lægger målingen i
+bufferen. Det tager ca. 25 ms og koster 0,2 mC; 20 målinger pr. periode er
+ca. 4 mC ud af 516 mC.
+
+![Én måling hvert 15. sekund](assets/ppk2/ppk2-maaling.png)
+
+**Hvile.** Mellem målingerne ligger strømmen på 0,69 mA. Hvilestrømmen består
+af korte impulser på ca. 3 mA med få millisekunders mellemrum, ikke af et jævnt
+niveau. Det tyder på en periodisk kilde på boardet, fx PWM til LED'en eller en
+regulator; en måling med LED'en slukket kan afgøre det.
+
+![Hvile mellem to målinger](assets/ppk2/ppk2-hvile.png)
 
 ### Fordeling pr. 5-minutters periode
 
@@ -27,7 +59,7 @@ Profiler Kit II (PPK2) og supplerer [dataforbrug.md](dataforbrug.md) (#32).
 | **I alt** | **516 mC** (= 1,72 mA × 300 s) | |
 
 Hvilen er 0,69 mA × 300 s ≈ 207 mC; de 20 målinger pr. periode giver kun ca.
-3 mC tilsammen. De resterende ca. 8 mC er korte radiospidser (op til 59 mA)
+4 mC tilsammen. De resterende ca. 8 mC er korte radiospidser (op til 59 mA)
 omkring 20 sekunder efter batchen, når modemmet frigiver forbindelsen.
 
 ### Det viser tallene
@@ -77,6 +109,7 @@ måneds batteritid, 16 KB data i timen og under 5 minutters leveringstid.
 | PPK2-opstilling | ampere meter: batteri på VIN, Thingy på VOUT, fælles GND |
 | Opløsning | 100 000 samples/s, gemt som 10 ms-gennemsnit og -maksimum |
 | Rådata | [1 s-vinduer som CSV](assets/ppk2/simple-batch5-2026-11-19.csv) |
+| Detaljegrafer | separat optagelse 11:11:08 til 11:16:38 UTC med 100 µs-opløsning, samme opstilling |
 
 ## Forbehold
 
@@ -101,5 +134,14 @@ python3 -m venv .venv && .venv/bin/pip install -r Simple/scripts/ppk2/requiremen
 .venv/bin/python Simple/scripts/ppk2/analyze.py maaling.csv <start_epoch fra measure.py>
 ```
 
-`measure.py` sætter PPK2'en i ampere meter, inden den tænder for VOUT, så
+Graferne laves med `capture.py` (100 µs-opløsning, mindst 6 minutter) og
+`plot.py`:
+
+```bash
+.venv/bin/python Simple/scripts/ppk2/capture.py /dev/ttyACM0 360 fine.bin
+.venv/bin/python Simple/scripts/ppk2/plot.py fine.bin <start_epoch> docs/assets/ppk2
+.venv/bin/python Simple/scripts/ppk2/plot.py maaling.csv <start_epoch> docs/assets/ppk2 <start_s> <slut_s>
+```
+
+Scripts sætter PPK2'en i ampere meter, inden de tænder for VOUT, så
 PPK2'ens egen forsyning aldrig kobles til Thingy'en.
