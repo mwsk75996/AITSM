@@ -86,4 +86,4 @@ jobs:
           tar -C cloud/mqtt -czf - questdb_schema.py verify_dedup.py migrations/001_enable_dedup.sql | \
             ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" "tar -xzf - -C $remote_dir"
           ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" \
-            "python3 $remote_dir/questdb_schema.py && python3 $remote_dir/verify_dedup.py --service projekt-c-ingest"
+            "python3 $remote_dir/questdb_schema.py && python3 $remote_dir/verify_dedup.py --ingest-file /var/www/html/projekt-c/cloud/mqtt/ingest.py"

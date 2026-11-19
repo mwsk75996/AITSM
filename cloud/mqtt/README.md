@@ -1,7 +1,14 @@
 # MQTT til QuestDB
 
-`ingest.py` modtager single- og batch-JSON fra MQTT med QoS 1 og skriver
-`temperature` og `battery` til `sensor_readings` over ILP/HTTP. Credentials
+`ingest.py` modtager SparkplugB (NBIRTH og NDATA) fra MQTT med QoS 1 og skriver
+`temperature` og `battery` til `sensor_readings` over ILP/HTTP. Edge node-id
+fra topicet bliver `device_id`; hver måling (metric-timestamp) bliver én række.
+NBIRTH kvitteres uden at gemme noget. Protobuf-payloaden afkodes af en lille
+indbygget afkoder i `ingest.py`, så servicen ikke kræver ekstra pakker.
+Subscriptions er `spBv1.0/+/NBIRTH/+` og `spBv1.0/+/NDATA/+`. Ingest abonnerer
+også stadig på det gamle JSON-topic `aitsm/+/telemetry`, fordi
+integrationstestene bruger JSON-vejen, men ingen enhed må længere skrive dertil
+(#107, se [ACL](#mosquitto-per_listener_settings-false)). Credentials
 kommer fra servicens miljø; de må ikke gemmes i repository'et.
 
 ## Deduplikering (#78)
@@ -51,9 +58,10 @@ anvendes på VPS'en via de eksisterende SSH-secrets og kendt host key. Workflowe
 kan også startes manuelt på `main`. Migrationen kører aldrig fra en PR.
 
 VPS-verifikationen henter to eksisterende målinger og gentager deres batch
-to gange gennem den installerede `ingest.py`'s `on_message`. Begge faktiske
-HTTP-skrivninger skal lykkes, WAL skal være anvendt, og antal/værdier skal
-være uændrede. Den bruger servicens Python-interpreter; ingen testdata,
+to gange gennem den installerede `ingest.py`'s skrivefunktion (`store_message`,
+eller `on_message` i versioner før #88). Begge faktiske HTTP-skrivninger skal lykkes, WAL skal være anvendt, og antal/værdier skal
+være uændrede. Den kører med værtens `python3` mod ingest-filen, som
+ingest-containeren bind-mounter; ingen testdata,
 servicecredentials eller broker-genstart er nødvendige. Webdeployet berøres ikke.
 
 ## Tests
@@ -72,6 +80,14 @@ QUESTDB_INTEGRATION_URL=http://127.0.0.1:19078 python -m pytest cloud/mqtt/tests
 
 Testen sender samme batch to gange gennem den rigtige ingest-kode, verificerer
 separate enheder ved samme tid, last-write-wins og en gentagen migration.
+
+MQTT-integrationstestene kræver desuden en isoleret broker med
+`tests/mosquitto/mosquitto.conf`. De opretter og fjerner selv `sensor_readings`:
+
+```bash
+QUESTDB_INTEGRATION_URL=http://127.0.0.1:9000 MQTT_INTEGRATION_HOST=127.0.0.1 \
+  python -m pytest cloud/mqtt/tests/test_mqtt_session_integration.py cloud/mqtt/tests/test_questdb_outage_integration.py
+```
 
 
 ## Vedvarende ingest-session (#81)
@@ -95,12 +111,36 @@ normal broker-genstart; strømsvigt kan stadig miste data siden seneste disksave
 
 Det tilføjer kun sessionegenskaber ved ingest-connect. Enheden sender samme
 payload og batches som før. Dubletter ved genlevering håndteres af #78.
-Enhedens PUBACK er fortsat brokerens kvittering, og ingest kvitterer automatisk
-efter callback: fejlet HTTP-skrivning til QuestDB er en særskilt risiko (#88), som
-sessionen alene ikke afhjælper.
+Enhedens PUBACK er fortsat brokerens kvittering. Ingest kvitterer først over for
+brokeren, når QuestDB har gemt målingerne (se nedenfor).
 
 Se [Pahos connect-API](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html)
 og [Mosquittos kø- og persistencegrænser](https://mosquitto.org/man/mosquitto-conf-5.html).
+
+### Mosquitto: `per_listener_settings false`
+
+Mosquitto 2.0 (testet med 2.0.18 og 2.0.22) afviser ACL-tjekket for en
+afbrudt klient, når `per_listener_settings true` er sat. Beskeder til den
+offline ingest-session kasseres så, selv om enheden får PUBACK. Det tabte
+batchen i den første live-kørsel af testcase 4 (2026-10-01). Med
+`per_listener_settings true` gælder en `acl_file` før første `listener`
+desuden ingen listener, så ACL'en var reelt slået fra.
+
+VPS'en bruger derfor `per_listener_settings false` med `allow_anonymous`,
+`password_file` og `acl_file` angivet én gang; Mosquitto afviser gentagne
+værdier i den tilstand. ACL'en giver `thingy91x` skriveadgang til
+`spBv1.0/aitsm/NBIRTH/thingy91x` og `spBv1.0/aitsm/NDATA/thingy91x` og intet
+andet. Skriveadgangen til det gamle JSON-emne `aitsm/+/telemetry` er fjernet
+(#107), fordi Simple kun bruger SparkplugB. `cloud_ingest` læser
+`spBv1.0/+/NBIRTH/+`, `spBv1.0/+/NDATA/+` og `aitsm/+/telemetry`. Testbrokeren
+i `tests/mosquitto/` har samme tilstand. Dens anonyme testklient må stadig
+skrive til `aitsm/+/telemetry`, fordi integrationstestene bruger ingests
+JSON-vej, og udfaldstesten stopper, før ingest stoppes,
+hvis brokeren har `per_listener_settings true`.
+
+Brokeren og QuestDB kører i Docker på VPS'en. Den aktive broker-konfiguration
+er [`cloud/docker/mosquitto/mosquitto.conf`](../docker/mosquitto/mosquitto.conf);
+se [`cloud/docker/README.md`](../docker/README.md).
 
 ### Deploy og testcase 4
 
@@ -112,11 +152,12 @@ før genstart; bagefter kræves alle 40 rækker med korrekte værdier.
 
 VPS-administrator skal først installere den [afgrænsede root-helper](deploy/README.md),
 da GitHub-kontoens eksisterende sudo-adgang kun dækker Nginx.
-Efter merge deployes kun `ingest.py` til stien fra `projekt-c-ingest`'s
-ExecStart. Filen erstattes atomisk med bevaret ejer og rettigheder, og servicens
-QoS 1-abonnement skal blive etableret. Ved fejl gendannes den tidligere fil,
-og servicen genstartes. Identisk indhold giver ingen genstart. Credentials,
-service-unit, QuestDB og webdeploy berøres ikke; SSH bruger kun GitHub Secrets. Workflowet kører den installerede
+Efter merge deployes kun `ingest.py` til `/var/www/html/projekt-c/cloud/mqtt/`,
+som `ingest`-containeren bind-mounter read-only (se [Docker](../docker/README.md)).
+Filen erstattes atomisk med bevaret ejer og rettigheder, containeren genstartes
+med `docker compose restart ingest`, og dens QoS 1-abonnement skal blive
+etableret. Ved fejl gendannes den tidligere fil, og containeren genstartes. Identisk indhold giver ingen genstart. Credentials,
+`compose.yml`, image, QuestDB og webdeploy berøres ikke; SSH bruger kun GitHub Secrets. Workflowet kører den installerede
 root-ejede helper gennem sudo, aldrig uploadede helpermoduler som root.
 
 Manuel kørsel på `main` med `verify_outage=true` gentager testcase 4 på VPS'en:
@@ -127,3 +168,49 @@ Et `finally`-forløb starter ingest igen, også ved testfejl. Workflowloggen
 indeholder kødirektiver og de genleverede rækker til kontrol; ingen syntetiske
 målinger indsættes. Testen udføres kun ved dette eksplicitte valg, ikke ved
 normale deploys.
+
+## Kvittering efter lagring (#88)
+
+Ingest kvitterer (PUBACK) først en måling over for brokeren, når QuestDB har
+accepteret HTTP-skrivningen. Netværksløkken kører i Pahos egen tråd og lægger
+beskeder i en kø; en writer skriver dem i modtagerækkefølge og kvitterer hver
+enkelt bagefter. Det kræver `manual_ack` fra paho-mqtt 2.0 eller nyere.
+
+| Situation | Handling |
+| --- | --- |
+| QuestDB accepterer rækkerne | PUBACK sendes |
+| Forbindelsesfejl, timeout eller anden HTTP-fejl end 400 | Ingen PUBACK. Samme rækker forsøges igen efter 1, 2, 4 … højst 30 s |
+| Ugyldig JSON, ukendte felter eller HTTP 400 fra QuestDB | Logges og kvitteres, så én fejl ikke blokerer al telemetri |
+| MQTT-forbindelsen afbrydes eller ingest genstartes under ventetid | Ingen PUBACK. Brokeren genleverer alle ukvitterede beskeder via den vedvarende session |
+
+Genforsøg har ikke et maksimalt antal: Beskeden ligger fortsat hos brokeren,
+og at opgive den ville tabe målingen. Ventetiden er begrænset til 30 s, så
+der ikke opstår et tæt loop. Ingest beder med MQTT v5 `Receive Maximum` om
+højst 10 ukvitterede beskeder ad gangen. Resten venter i brokerens kø, så
+ingests RAM-forbrug er begrænset, også under et langt databaseudfald.
+Brokerens kø har de samme grænser som beskrevet ovenfor.
+
+Måletiden kommer fra payloaden og ændres ikke ved genforsøg. En måling, der
+blev gemt, men hvis PUBACK ikke nåede frem, bliver genleveret og skrevet igen;
+deduplikeringen (#78) giver stadig kun én række. En PUBACK sendes ikke på en
+ny forbindelse for en besked fra en tidligere forbindelse, da pakke-id'et
+kan være genbrugt; den genleverede kopi kvitteres i stedet.
+
+Paho-versionen kontrolleres, før ingest.py erstattes på VPS'en: helperen
+forsøger at oprette en klient med `manual_ack`. Den installerede helper fra #81
+kontrollerer kun sessionegenskaberne; med en ældre Paho starter den nye ingest
+ikke og helperen gendanner den tidligere fil. `inspect_only=true` viser
+servicens Paho-version uden ændringer. Opgradering af Paho på VPS'en er en
+administratoropgave.
+
+`test_questdb_outage_integration.py` kører den rigtige ingest-proces mod
+Mosquitto og QuestDB med en HTTP-front, der kan afvise eller lukke for
+skrivninger:
+
+- QuestDB lukket, mens broker og ingest kører: 13 beskeder venter, højst 10
+  modtages, og efter genopretning findes alle 65 målinger med oprindelig
+  måletid, uden dubletter, også fra en gentaget batch.
+- Genstart under ventetid (HTTP 503): ingen rækker før genstart, bagefter alle
+  60 målinger, og kun de tre ukvitterede batches genleveres.
+- En ugyldig payload kvitteres og blokerer hverken efterfølgende målinger
+  eller kommer igen efter genstart.

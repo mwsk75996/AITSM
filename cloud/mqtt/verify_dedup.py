@@ -5,16 +5,13 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import re
-import shlex
-import subprocess
 import time
 from types import SimpleNamespace
 import questdb_schema as schema
 
 
 def verify(ingest_file, url):
-    # Only on_message is exercised: these dummy credentials are never used to
+    # Only the write path is exercised: these dummy credentials are never used to
     # connect to MQTT. Existing service credentials need not leave their file.
     os.environ["MQTT_INGEST_USER"] = "verification-unused"
     os.environ["MQTT_INGEST_PASSWORD"] = "verification-unused"
@@ -37,8 +34,11 @@ def verify(ingest_file, url):
     sql = "SELECT timestamp, device_id, temperature, battery FROM sensor_readings WHERE " + keys + " ORDER BY timestamp, device_id"
     before = schema.query(sql, url)
     message = SimpleNamespace(topic="aitsm/verification/telemetry", payload=json.dumps({"readings": rows}).encode())
-    ingest.on_message(None, None, message)
-    ingest.on_message(None, None, message)
+    # Ingest from before #88 wrote directly in on_message; newer versions
+    # acknowledge from a writer thread and expose the write as store_message.
+    store = getattr(ingest, "store_message", None) or (lambda m: ingest.on_message(None, None, m))
+    store(message)
+    store(message)
     if len(successful_writes) != 2:
         raise RuntimeError("Ingest gennemførte ikke begge HTTP-skrivninger")
     for _ in range(50):
@@ -59,15 +59,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default=schema.DEFAULT_URL)
     parser.add_argument("--ingest-file", type=Path, default=Path(__file__).with_name("ingest.py"))
-    parser.add_argument("--service", help="Use the installed service's Python interpreter and ingest.py")
     args = parser.parse_args()
-    if args.service:
-        command = subprocess.check_output(["systemctl", "show", args.service, "--property=ExecStart", "--value"], text=True)
-        match = re.search(r"argv\[\]=(.*?) ;", command)
-        argv = shlex.split(match.group(1)) if match else []
-        ingest_path = next((Path(a) for a in argv if a.endswith("/ingest.py")), None)
-        if not argv or ingest_path is None or not ingest_path.is_file():
-            raise RuntimeError("Kunne ikke finde service-interpreter og ingest.py")
-        subprocess.run([argv[0], str(Path(__file__).resolve()), "--ingest-file", str(ingest_path), "--url", args.url], check=True)
-    else:
-        verify(args.ingest_file, args.url)
+    verify(args.ingest_file, args.url)

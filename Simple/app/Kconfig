@@ -1,0 +1,56 @@
+menu "AITSM Simple"
+
+config AITSM_MEASUREMENT_INTERVAL_SECONDS
+	int "Measurement interval in seconds"
+	range 5 15
+	default 15
+	help
+	  Fixed interval between measurements. The range follows the project
+	  requirement of 5-15 seconds.
+
+config AITSM_BATCH_SIZE
+	int "Measurements per NDATA message"
+	range 1 28
+	default 20
+	help
+	  A batch is sent when this many measurements are collected. With a
+	  15-second interval, 20 measurements give one message every 5 minutes.
+
+config AITSM_BATCH_CAPACITY
+	int "Size of the measurement buffer"
+	range AITSM_BATCH_SIZE 28
+	default 28
+	help
+	  Number of measurements the device can hold. The extra room above
+	  AITSM_BATCH_SIZE keeps new measurements while a batch waits for its
+	  PUBACK, or while the connection is down. A full buffer of 28
+	  measurements still fits in one message.
+
+config AITSM_LED
+	bool "Show the connection status on the RGB LED"
+	default y
+	help
+	  Yellow: searching for the network. Blue: on the network. Green:
+	  connected to the broker. White: waiting for PUBACK. Red: startup
+	  failed. Disable it when measuring power consumption.
+
+config AITSM_MQTT_HOSTNAME
+	string "MQTT broker hostname"
+	default "aitsm.vps.webdock.cloud"
+
+config AITSM_SPARKPLUG_GROUP_ID
+	string "Sparkplug B group ID"
+	default "aitsm"
+	help
+	  Group ID in the topic spBv1.0/<group_id>/<message_type>/<edge_node_id>.
+
+config AITSM_SPARKPLUG_EDGE_NODE_ID
+	string "Sparkplug B edge node ID"
+	default "thingy91x"
+	help
+	  Edge node ID in the topic. Also used as MQTT client ID and as the
+	  device ID in the cloud.
+
+endmenu
+
+source "Kconfig.zephyr"
