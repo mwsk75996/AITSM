@@ -57,10 +57,10 @@ export function ReadingsTable({
           <TableHead scope="col">Enhed</TableHead>
           <TableHead scope="col">Tidspunkt</TableHead>
           <TableHead scope="col" className="text-right">
-            Enhedstemperatur
+            Batteri
           </TableHead>
           <TableHead scope="col" className="text-right">
-            Batteri
+            Enhedstemperatur
           </TableHead>
         </TableRow>
       </TableHeader>
@@ -81,10 +81,10 @@ export function ReadingsTable({
                 <Skeleton className="h-4 w-32" />
               </TableCell>
               <TableCell>
-                <Skeleton className="ml-auto h-4 w-16" />
+                <Skeleton className="ml-auto h-4 w-20" />
               </TableCell>
               <TableCell>
-                <Skeleton className="ml-auto h-4 w-20" />
+                <Skeleton className="ml-auto h-4 w-16" />
               </TableCell>
             </TableRow>
           ))
@@ -111,11 +111,11 @@ export function ReadingsTable({
               <TableCell className="text-muted-foreground">
                 {formatTimestamp(reading.timestamp)}
               </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {formatValue(reading.temperature, '°C')}
-              </TableCell>
               <TableCell className="text-right">
                 <BatteryIndicator value={reading.battery} />
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatValue(reading.temperature, '°C')}
               </TableCell>
             </TableRow>
           ))
