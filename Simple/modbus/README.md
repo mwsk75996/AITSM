@@ -9,9 +9,9 @@ DS18B20 ──1-Wire──▶ ESP32 slave ──Modbus TCP──▶ ESP32 master
                     Device: esp32-modbus               Edge Node: esp32-gateway
 ```
 
-- **Slaven** (Modbus-server) måler temperaturen hvert 5. sekund og lægger den i
+- **Slaven** (Modbus-server) måler temperaturen hvert 15. sekund, ligesom Thingy'en, og lægger den i
   input-registre.
-- **Masteren** (Modbus-client) læser registrene hvert 5. sekund og gemmer
+- **Masteren** (Modbus-client) læser registrene hvert 15. sekund og gemmer
   målingerne med tid fra NTP. Den er forbundet til telefonens hotspot og laver
   samtidig sit eget WiFi, `aitsm-modbus`, som slaven forbinder til.
 - **Til VPS'en** sender masteren målingerne som SparkplugB over MQTT/TLS (port
@@ -31,8 +31,10 @@ DS18B20 ──1-Wire──▶ ESP32 slave ──Modbus TCP──▶ ESP32 master
   eget tidsstempel, markeret `is_historical`. Højst 60 målinger pr. besked.
 - **Hvornår der sendes:** når en NDATA fra `thingy91x` er set, sendes hele
   bufferen. Kommer der ingen batch fra Thingy'en, sendes alligevel, når
-  bufferen er tre fjerdedele fuld (90 målinger, 7,5 minut). Bufferen rummer
-  120 målinger (10 minutter); er den fuld, springes nye målinger over og tælles.
+  bufferen er tre fjerdedele fuld (30 målinger, 7,5 minut). Bufferen rummer
+  40 målinger (10 minutter); er den fuld, springes nye målinger over og tælles.
+  Med samme interval som Thingy'en kommer der lige mange målinger fra hver
+  slags enhed: 20 pr. batch.
 - Målingerne fjernes først fra bufferen, når brokeren har kvitteret med PUBACK.
   Uden PUBACK inden 30 s sendes de igen; QuestDB fjerner eventuelle dubletter.
 - Ingest gemmer DDATA med device-id'et, så målingerne står som `esp32-modbus`

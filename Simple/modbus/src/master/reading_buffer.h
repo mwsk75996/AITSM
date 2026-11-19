@@ -9,8 +9,8 @@ struct reading {
 	int16_t centi_celsius;
 };
 
-/* 120 readings at 5 s is 10 minutes, twice the Thingy's batch interval. */
-#define READING_BUFFER_CAPACITY 120
+/* 40 readings at 15 s is 10 minutes, twice the Thingy's batch interval. */
+#define READING_BUFFER_CAPACITY 40
 
 /*
  * Store a reading. When the buffer is full the new reading is dropped and

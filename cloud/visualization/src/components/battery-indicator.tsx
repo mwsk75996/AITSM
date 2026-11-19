@@ -26,12 +26,17 @@ export function BatteryIndicator({ value, className }: BatteryIndicatorProps) {
       role="img"
       aria-label={`Batteri ${label}`}
     >
-      <span className="relative h-3.5 w-8 rounded-[3px] border border-muted-foreground/50 p-[2px]">
-        <span
-          className={cn('block h-full rounded-[1px] transition-[width]', FILL_STYLES[level])}
-          style={{ width: `${clampPercentage(value)}%` }}
-        />
-      </span>
+      {/* Devices without a battery (the ESP32s) get no empty icon, only the dash. */}
+      {level === 'unknown' ? (
+        <span aria-hidden="true" />
+      ) : (
+        <span className="relative h-3.5 w-8 rounded-[3px] border border-muted-foreground/50 p-[2px]">
+          <span
+            className={cn('block h-full rounded-[1px] transition-[width]', FILL_STYLES[level])}
+            style={{ width: `${clampPercentage(value)}%` }}
+          />
+        </span>
+      )}
       <span className="text-right text-sm tabular-nums text-muted-foreground">{label}</span>
     </span>
   )

@@ -27,5 +27,8 @@ enum modbus_input_register : uint16_t {
 	MODBUS_IREG_COUNT = 3,
 };
 
-/* Measurement and polling interval, within the 5-15 s from the requirements. */
-#define MODBUS_INTERVAL_MS 5000U
+/*
+ * Measurement and polling interval: 15 s like the Thingy, so the two kinds of
+ * devices have the same number of readings in QuestDB.
+ */
+#define MODBUS_INTERVAL_MS 15000U
