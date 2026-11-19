@@ -155,7 +155,11 @@ if ($batteryMax !== null) {
 
 $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
 
-$countQuery = "SELECT count(), avg(temperature), min(battery) FROM sensor_readings{$where}";
+// Gennemsnit pr. enhedstype: Thingy:91 X (NB-IoT) og ESP32 Modbus-gatewayen (#93).
+$countQuery = 'SELECT count(), avg(temperature), min(battery),'
+    . " avg(CASE WHEN device_id LIKE 'thingy%' THEN temperature END),"
+    . " avg(CASE WHEN device_id LIKE 'esp32%' THEN temperature END)"
+    . " FROM sensor_readings{$where}";
 
 // Hent én række ekstra for at afgøre, om der findes en næste side.
 $dataConditions = $conditions;
@@ -258,6 +262,8 @@ try {
             'summary' => [
                 'avg_temperature' => $aggregateRow[1] ?? null,
                 'min_battery' => $aggregateRow[2] ?? null,
+                'avg_temperature_thingy' => $aggregateRow[3] ?? null,
+                'avg_temperature_modbus' => $aggregateRow[4] ?? null,
             ],
             'readings' => $readings,
         ],

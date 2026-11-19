@@ -9,3 +9,5 @@ user test-user
 topic read aitsm/+/telemetry
 topic read spBv1.0/+/NBIRTH/+
 topic read spBv1.0/+/NDATA/+
+topic read spBv1.0/+/DBIRTH/+/+
+topic read spBv1.0/+/DDATA/+/+

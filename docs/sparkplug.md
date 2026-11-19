@@ -120,16 +120,32 @@ batching (#98), der skar dataforbruget til en fjerdedel, ikke formatet.
 
 | Del af standarden | Hvorfor den mangler |
 | --- | --- |
-| **NDEATH** som MQTT last will | NCS' `mqtt_helper` kan kun sætte et last will som fast Kconfig-tekst med QoS 0, og en protobuf-payload med `bdSeq` kan ikke skrives som tekst. Skyen ser derfor en afbrudt enhed som manglende data, ikke som en NDEATH. |
+| **NDEATH** som MQTT last will (Thingy) | NCS' `mqtt_helper` kan kun sætte et last will som fast Kconfig-tekst med QoS 0, og en protobuf-payload med `bdSeq` kan ikke skrives som tekst. Skyen ser derfor en afbrudt Thingy som manglende data, ikke som en NDEATH. ESP32-gatewayen i Modbus-sideprojektet har NDEATH, fordi ESP-IDF's MQTT-klient tillader et binært last will (se nedenfor). |
 | **Aliases** | Ville spare ca. 18 bytes pr. måling, men kræver, at ingest husker koblingen mellem alias og navn fra NBIRTH. Det er ikke det værd ved vores datamængde. |
 | **NCMD** (kommandoer fra skyen) | Kun "Nice to have" i kravspecifikationen. Enheden abonnerer ikke på noget i dag. |
-| **DBIRTH/DDATA** | Der er ingen enheder under Thingy'en. |
+| **DBIRTH/DDATA** for Thingy'en | Der er ingen enheder under Thingy'en. ESP32-gatewayen bruger dem (se nedenfor). |
 | **STATE fra en primær host** | Bruges til at skifte mellem flere SCADA-værter. Vi har kun ingest. |
 | **Kontrol af `seq` i ingest** | `seq` logges, men ingest reagerer ikke på huller. Dubletter fanges i stedet af QuestDB's deduplikering på `device_id` og tidsstempel (#78). |
 
 Vi følger altså SparkplugB's topic-struktur, payload-format og birth/seq-forløb
 fuldt ud for NBIRTH og NDATA. Den del af standarden, der handler om at
 opdage en død enhed, er ikke implementeret.
+
+## ESP32 Modbus-gateway (#93)
+
+Modbus-sideprojektet i [`Simple/modbus/`](../Simple/modbus/README.md) bruger
+de dele af standarden, Thingy'en ikke har brug for:
+
+| Rolle | Id | Topics |
+| --- | --- | --- |
+| Edge Node (ESP32-master) | `esp32-gateway` | `NBIRTH`, `NDEATH` |
+| Device (ESP32-slave med DS18B20) | `esp32-modbus` | `DBIRTH`, `DDATA` |
+
+- **NDEATH** er masterens MQTT last will med samme `bdSeq` som NBIRTH, så
+  brokeren melder gatewayen død, hvis forbindelsen ryger.
+- **DDATA** sendes lige efter, at gatewayen har set en NDATA fra Thingy'en, så
+  de to batches kommer ind sammen. Ingest gemmer DDATA med device-id'et fra
+  topicet, så målingerne står som `esp32-modbus` i QuestDB.
 
 ## Test
 

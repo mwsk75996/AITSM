@@ -36,7 +36,8 @@ function KpiCard({ label, value, hint }: KpiCardProps) {
 }
 
 export function KpiGrid({ total, summary, lastUpdated, loading }: KpiGridProps) {
-  const avgTemperature = toNumber(summary?.avg_temperature)
+  const avgThingy = toNumber(summary?.avg_temperature_thingy)
+  const avgModbus = toNumber(summary?.avg_temperature_modbus)
   const minBattery = toNumber(summary?.min_battery)
   const hasData = !loading || total > 0
 
@@ -50,7 +51,7 @@ export function KpiGrid({ total, summary, lastUpdated, loading }: KpiGridProps) 
 
   return (
     <section
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
       aria-label="Nøgletal"
     >
       <KpiCard
@@ -59,9 +60,14 @@ export function KpiGrid({ total, summary, lastUpdated, loading }: KpiGridProps) 
         hint={countHint}
       />
       <KpiCard
-        label="Gns. temperatur"
-        value={formatValue(avgTemperature, '°C')}
-        hint="På tværs af målinger"
+        label="Gns. temperatur, Thingy"
+        value={formatValue(avgThingy, '°C')}
+        hint="Thingy:91 X over NB-IoT"
+      />
+      <KpiCard
+        label="Gns. temperatur, Modbus"
+        value={formatValue(avgModbus, '°C')}
+        hint="ESP32 over Modbus TCP"
       />
       <KpiCard
         label="Laveste batteri"
