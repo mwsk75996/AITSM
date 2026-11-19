@@ -58,7 +58,8 @@ Der bruges ingen devicetree-overlays; boardets standard-devicetree for
 | `src/sparkplug.c` / `sparkplug.h` + `proto/` | SparkplugB v1.0-topics og protobuf-payloads (NBIRTH og NDATA) med nanopb. |
 | `prj.conf` / `Kconfig` | Måleinterval, batchstørrelse, bufferstørrelse, broker og de nødvendige NCS-subsystemer. |
 
-Modbus (#93) kommer bagefter. Selve Modbus-koden ligger på ESP32'en. På Thingy'en publicerer `src/modbus.c` / `modbus.h` en simpel MQTT-besked til den fælles broker; ESP32'en abonnerer på den via VPS'en og udfører Modbus RTU-skrivningen. **Foreløbigt:** løsningen skal godkendes af underviseren, før den vælges endeligt, fordi kravet nævner Zephyrs Modbus-API og dataopsamling; se #93.
+Modbus er ikke en del af Simple. Det er et sideprojekt på to ESP32'er uden
+Thingy'en; se #93 og [`README.md`](../README.md#teknologistak).
 
 ### Tråde og synkronisering
 
@@ -121,7 +122,6 @@ tilstand.
 | K13 | Lavt strømforbrug via sleep modes | `network.c` (PSM), måletråd (`k_sleep`) | Serial log: PSM tildelt; strømmåling med PPK2 (#99) |
 | K14 | Egen cloud server til dataopsamling | Fælles [`cloud/`](../cloud/) | Integrationstest: Thingy → broker → QuestDB |
 | K15 | Redegørelse for CRA og/eller IEC 62443 | Fælles [`docs/standarder-iec62443-cra.md`](../docs/standarder-iec62443-cra.md), [`docs/mindste-privilegier.md`](../docs/mindste-privilegier.md) og [SBOM](../docs/sbom/README.md) | Dokumentation; boardtest af secure boot (EDR 3.14) |
-| K16 | Modbus RTU/TCP-dataopsamling | Ikke implementeret endnu. Planen er en Modbus RTU-master på ESP32 (#93) | Fastlægges i #93 |
 
 ### Tests
 
