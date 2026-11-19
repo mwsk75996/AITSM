@@ -119,7 +119,7 @@ tilstand.
 | K10 | Data: device-id, timestamp og aflæste værdier | `sensor.c`, `sparkplug.c` | Unit test `tests/sparkplug`; QuestDB-rækker |
 | K11 | Fast måleinterval på 5-15 s | `app/Kconfig`, måletråd | Integrationstest: interval mellem rækker er 15 s |
 | K12 | Lavt dataforbrug via batching | `batch.c`, `app/Kconfig` | Unit test `tests/batch` |
-| K13 | Lavt strømforbrug via sleep modes | `network.c` (PSM), måletråd (`k_sleep`) | Serial log: PSM tildelt; strømmåling med PPK2 (#99) |
+| K13 | Lavt strømforbrug via sleep modes | `network.c` (PSM), måletråd (`k_sleep`) | Serial log: PSM tildelt; PPK2: 1,72 mA i gns., 0,69 mA i hvile ([stroemforbrug.md](../docs/stroemforbrug.md)) |
 | K14 | Egen cloud server til dataopsamling | Fælles [`cloud/`](../cloud/) | Integrationstest: Thingy → broker → QuestDB |
 | K15 | Redegørelse for CRA og/eller IEC 62443 | Fælles [`docs/standarder-iec62443-cra.md`](../docs/standarder-iec62443-cra.md), [`docs/mindste-privilegier.md`](../docs/mindste-privilegier.md) og [SBOM](../docs/sbom/README.md) | Dokumentation; boardtest af secure boot (EDR 3.14) |
 

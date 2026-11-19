@@ -1,10 +1,8 @@
 # Dataforbrug og leveringstid for transmissionsprofiler (#32)
 
 Dette dokument viser, hvor mange data de fire transmissionsprofiler bruger, og hvor
-lang tid der går fra måling til bekræftet afsendelse. Strømforbruget er **ikke**
-målt endnu. Det følges særskilt i [#99](https://github.com/mwsk75996/AITSM/issues/99),
-som afventer skolens PPK2. Strømmålingen blokerer ikke arbejdet med Simple (#92),
-men skal gennemføres inden projektets endelige validering.
+lang tid der går fra måling til bekræftet afsendelse. Strømforbruget er målt med
+PPK2 i [stroemforbrug.md](stroemforbrug.md) (#99).
 
 ## Testbetingelser
 
@@ -60,7 +58,8 @@ bufferen): 4 til 8 KB modtaget og 1 KB sendt, én gang pr. forbindelse.
   timen), men forlænger ventetiden fra gennemsnitligt 2,4 til 3,9 minutter.
 - Modemmet er RRC-idle størstedelen af tiden i batch-profilerne (se #23). Single
   vækker modemmet 4 gange i minuttet, så modemmet kan næppe nå at sove i PSM.
-  Det forventes at give det største strømforbrug; det skal bekræftes med PPK2.
+  Det forventes at give det største strømforbrug. Kun `batch5` er målt med PPK2
+  (1,72 mA, se [stroemforbrug.md](stroemforbrug.md)).
 
 ## Anbefalet standardprofil
 
@@ -106,9 +105,9 @@ bruger nu 28.
   ikke en præcis værdi. Signalforhold og operatørens NAT kan ændre resultaterne.
 - Én enhed og ét net. LTE-M er ikke målt, fordi enheden er konfigureret til
   NB-IoT (#25).
-- Strømforbruget er ikke målt og følges i #99, som kræver PPK2. #32 omfatter
-  dataforbrug og leveringstid. Anbefalingen af batch hvert 5. minut er derfor
-  foreløbig, indtil den også er vurderet ud fra strømmålingerne.
+- Strømforbruget er målt for `batch5` med Simple i [stroemforbrug.md](stroemforbrug.md)
+  (#99): 1,72 mA i gennemsnit, ca. 33 døgns batteritid. Det bekræfter anbefalingen
+  af batch hvert 5. minut.
 
 ## Gentag målingen
 

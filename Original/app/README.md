@@ -205,7 +205,7 @@ reboot/strømsvigt. Før UTC-tiden er gyldig gemmes ingen udaterede målinger.
 Dette vælger mulighed A i #77: lokal indsamling og buffering, med en tydelig
 grænse for tab. Det kræver ingen ekstra radioopkoblinger eller flash-skrivninger.
 Læs [beslutningen og valideringen](../../docs/maalinger-under-udfald.md).
-Dataforbrug og leveringstid behandles i #32. Strømmåling med PPK2 følges i #99.
+Dataforbrug og leveringstid behandles i #32. Strømmåling med PPK2 (#99) er lavet på Simple, se `docs/stroemforbrug.md`.
 
 ## Strømbesparelse (#23)
 
@@ -231,7 +231,7 @@ Strømforbruget holdes nede på to niveauer:
 Målt forløb på enheden med standardprofilen (se `RRC-tilstand` i loggen): RRC
 er *connected* i ca. 12 sekunder, når en batch sendes hvert 5. minut, og *idle*
 resten af tiden. Der er ingen keepalive-ping imellem. Dataforbruget behandles i
-#32; måling af selve strømforbruget afventer PPK2 i #99.
+#32; strømforbruget med Simple er målt med PPK2 i `docs/stroemforbrug.md` (#99).
 
 `overlay-low-power.conf` slår konsol og logning fra til strømmålinger:
 

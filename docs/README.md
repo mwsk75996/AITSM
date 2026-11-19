@@ -18,6 +18,7 @@ Denne mappe indeholder projektdokumentation, kravspecifikationer og tekniske ref
 - [Mindste privilegier (#107)](mindste-privilegier.md)
 - [Test og validering (issue #12)](test-validering.md)
 - [Dataforbrug pr. profil](dataforbrug.md)
+- [Strømforbrug målt med PPK2 (issue #99)](stroemforbrug.md)
 - [MQTT-netværkskø (issue #75)](mqtt-netvaerksko.md)
 - [MQTT-reconnect (issue #76)](mqtt-reconnect.md)
 
