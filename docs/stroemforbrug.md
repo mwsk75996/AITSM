@@ -1,5 +1,9 @@
 # Strømforbrug målt med PPK2 (#99)
 
+En letlæst oversigt over forbedringen før og efter, med grafer, findes i
+[stroemforbrug.html](stroemforbrug.html) (åbn filen i en browser). Den bygges med
+`python3 Simple/scripts/ppk2/build_report.py`.
+
 Dette dokument viser, hvor meget strøm Thingy:91 X bruger med Simple-firmwaren
 og standardprofilen (batch hvert 5. minut). Målingen er lavet med Nordics Power
 Profiler Kit II (PPK2) og supplerer [dataforbrug.md](dataforbrug.md) (#32).
