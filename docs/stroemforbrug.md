@@ -16,6 +16,44 @@ Profiler Kit II (PPK2) og supplerer [dataforbrug.md](dataforbrug.md) (#32).
 | Højeste spids i hele målingen | 170 mA (opstart, 10 µs-sample) |
 | Opstart fra slukket til første batch | 23 s, 507 mC |
 
+## Før og efter PSM (#23)
+
+Samme opstilling og samme profil (måling hvert 15. sekund, batch hvert 5.
+minut), men med firmwaren fra commit `38d6250`, lige før PSM og sleep blev
+indført i #23. Den forbinder og sender som normalt; VPS'en modtog alle fem
+batches.
+
+| | Før (`38d6250`) | Efter (Simple) |
+| --- | --- | --- |
+| PSM | nej | ja (TAU 3600 s, aktiv tid 10 s) |
+| MQTT-keepalive | 60 s | 1200 s |
+| Radio vågner | hvert minut | hvert 5. minut |
+| **Middelstrøm, stabil drift (25 min)** | **7,40 mA** | **1,72 mA** |
+| Batteritid, 1350 mAh (teoretisk) | 7,6 døgn | 32,7 døgn |
+| Andel af tiden over 20 mA | 16 % | 2,6 % |
+| Hvilestrøm | 0,73 mA | 0,69 mA |
+| Højeste spids | 365 mA | 162 mA |
+
+![Strømforbrug før og efter PSM](assets/ppk2/ppk2-foer-efter.png)
+
+**Det viser sammenligningen:**
+
+- **Strømforbruget er 4,3 gange lavere efter #23.** Batteritiden går fra ca. en
+  uge til ca. en måned.
+- **Forskellen er MQTT-keepalive, ikke hvilen.** Med keepalive på 60 s skal
+  modemmet forbinde til nettet hvert minut for at sende et PINGREQ. Hver gang
+  koster det lige så meget som en batch (ca. 300 mC), fordi radioen bliver
+  forbundet i ca. 15 s, før nettet frigiver den. Det er fem gange flere
+  radioforbindelser end nødvendigt.
+- **Hvilestrømmen er næsten den samme** (0,73 mod 0,69 mA). Den er domineret af
+  resten af boardet, ikke af modemmet; se *Hvile* nedenfor.
+- Ved 24 minutter tog én keepalive 24 s med spidser op til 365 mA og 1,6 C
+  ladning, sandsynligvis på grund af dårligere radioforhold i det øjeblik.
+  Uden den ville gennemsnittet før være ca. 6,6 mA; forskellen er stadig
+  ca. 4 gange.
+
+Rådata: [før, 1 s-vinduer](assets/ppk2/foer-psm-38d6250-2026-11-19.csv).
+
 ## Grafer
 
 Graferne viser PPK2-målingen som i Power Profiler: strømmen over tid og en
@@ -109,6 +147,7 @@ måneds batteritid, 16 KB data i timen og under 5 minutters leveringstid.
 | PPK2-opstilling | ampere meter: batteri på VIN, Thingy på VOUT, fælles GND |
 | Opløsning | 100 000 samples/s, gemt som 10 ms-gennemsnit og -maksimum |
 | Rådata | [1 s-vinduer som CSV](assets/ppk2/simple-batch5-2026-11-19.csv) |
+| Før-måling | firmware `38d6250`, 2026-11-19 11:37:42 til 12:07:42 UTC, samme opstilling |
 | Detaljegrafer | separat optagelse 11:11:08 til 11:16:38 UTC med 100 µs-opløsning, samme opstilling |
 
 ## Forbehold
@@ -136,6 +175,14 @@ python3 -m venv .venv && .venv/bin/pip install -r Simple/scripts/ppk2/requiremen
 
 Graferne laves med `capture.py` (100 µs-opløsning, mindst 6 minutter) og
 `plot.py`:
+
+Sammenligningen før og efter laves med `compare.py` ud fra to CSV-filer fra
+`measure.py` og hver måling sit tidsrum for stabil drift (sekunder):
+
+```bash
+.venv/bin/python Simple/scripts/ppk2/compare.py foer-efter.png \
+  foer.csv "Før" 300.6 1800 efter.csv "Efter" 289.2 1789.2
+```
 
 ```bash
 .venv/bin/python Simple/scripts/ppk2/capture.py /dev/ttyACM0 360 fine.bin
